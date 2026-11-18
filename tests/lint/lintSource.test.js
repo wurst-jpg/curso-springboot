@@ -1,5 +1,6 @@
 import { lintSource } from '../../src/lint/lintSource.js'
 import course, { flattenChallenges } from '../../src/content/course.js'
+import cursoReact from '../fixtures/cursoReact.js'
 
 const errors = (r) => r.filter((d) => d.severity === 2)
 
@@ -61,8 +62,9 @@ describe('lintSource', () => {
 describe('retos del curso y ESLint', () => {
   const all = flattenChallenges(course)
 
-  it('m00-l3-c1: el inicial tiene errores y la solución queda limpia', () => {
-    const { challenge } = all.find((e) => e.challenge.id === 'm00-l3-c1')
+  // Reto de ESLint del curso de React (de prueba): no depende del contenido del curso real.
+  it('m00-l3-c1 (curso de React): el inicial tiene errores y la solución queda limpia', () => {
+    const { challenge } = flattenChallenges(cursoReact).find((e) => e.challenge.id === 'm00-l3-c1')
     const start = Object.values(challenge.files).flatMap((src) => lintSource(src))
     expect(errors(start).length).toBeGreaterThanOrEqual(1)
     expect(start.some((d) => d.ruleId === 'no-unused-vars')).toBe(true)

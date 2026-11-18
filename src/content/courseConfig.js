@@ -6,5 +6,5 @@
 //   'code': solo código. No hay vista previa ni se ejecuta nada (sirve para Java, Spring Boot…);
 //           "Comprobar" solo revisa el texto de los archivos.
 export default {
-  mode: 'sandbox',
+  mode: 'code',
 }

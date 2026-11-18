@@ -7,6 +7,14 @@ import { ProgressProvider } from '../../src/progress/ProgressContext.jsx'
 import { PROGRESS_KEY } from '../../src/progress/progress.js'
 import { codeKey } from '../../src/progress/code.js'
 
+// Estas pruebas son del modo con vista previa: usan un curso de React de prueba y el modo
+// 'sandbox' explícito, sin depender del curso real ni de src/content/courseConfig.js.
+vi.mock('../../src/content/courseConfig.js', () => ({ default: { mode: 'sandbox' } }))
+vi.mock('../../src/content/course.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  default: (await import('../fixtures/cursoReact.js')).default,
+}))
+
 function setup() {
   return render(
     <ProgressProvider>

@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
 import courseConfig from '../../src/content/courseConfig.js'
-import { courseMode, isCodeOnly } from '../../src/content/mode.js'
+import { COURSE_MODES, courseMode, isCodeOnly } from '../../src/content/mode.js'
 
 describe('courseConfig', () => {
-  it('por defecto el curso es de vista previa (sandbox), como el curso de React', () => {
-    expect(courseConfig).toEqual({ mode: 'sandbox' })
+  // El modo real cambia en cada curso copiado ('sandbox' en React, 'code' en Java…).
+  it('solo tiene la clave mode, con un modo que existe', () => {
+    expect(Object.keys(courseConfig)).toEqual(['mode'])
+    expect(COURSE_MODES).toContain(courseConfig.mode)
   })
 
   it('es un objeto simple sin import (lo copia el script de cursos nuevos)', () => {
@@ -18,7 +20,8 @@ describe('modo del curso y de cada reto', () => {
     expect(courseMode({ mode: 'code' })).toBe('code')
     expect(courseMode({ mode: 'sandbox' })).toBe('sandbox')
     expect(courseMode({})).toBe('sandbox')
-    expect(courseMode(undefined)).toBe('sandbox')
+    // (con undefined se usaría la configuración real por ser el valor por defecto del parámetro)
+    expect(courseMode(null)).toBe('sandbox')
   })
 
   it('isCodeOnly: curso en modo code o reto con preview:false', () => {
@@ -30,7 +33,9 @@ describe('modo del curso y de cada reto', () => {
     expect(isCodeOnly({ id: 'a' }, code)).toBe(true)
   })
 
-  it('con la configuración real, los retos del curso de React usan vista previa', () => {
-    expect(isCodeOnly({ id: 'x' })).toBe(false)
+  it('sin pasar config se usa la configuración real del curso', () => {
+    expect(courseMode()).toBe(courseConfig.mode)
+    expect(isCodeOnly({ id: 'x' })).toBe(courseConfig.mode === 'code')
+    expect(isCodeOnly({ id: 'x', preview: false })).toBe(true)
   })
 })

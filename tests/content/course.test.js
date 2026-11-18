@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { parse } from 'acorn'
 import course, { flattenChallenges, findChallenge } from '../../src/content/course.js'
 import { lintSource } from '../../src/lint/lintSource.js'
-import { validateCourse } from '../../src/content/schema.js'
+import { CODE_ONLY_CHECK_TYPES, validateCourse } from '../../src/content/schema.js'
+import courseConfig from '../../src/content/courseConfig.js'
+import { isCodeOnly } from '../../src/content/mode.js'
 
 describe('curso', () => {
   it('es válido', () => {
@@ -86,7 +88,20 @@ describe('curso', () => {
     })
   })
 
-  it('L2 no trae Saludo.jsx de inicio', () => {
-    expect(findChallenge(course, 'm00-l2-c1').challenge.files['/src/Saludo.jsx']).toBeUndefined()
-  })
+  // Depende del modo real (src/content/courseConfig.js), que cambia en cada curso copiado.
+  if (courseConfig.mode === 'code') {
+    it('curso de solo código: ningún reto usa vista previa ni checks del iframe', () => {
+      flattenChallenges(course).forEach(({ challenge }) => {
+        expect(isCodeOnly(challenge), challenge.id).toBe(true)
+        expect(challenge.preview, challenge.id).not.toBe(true)
+        challenge.checks.forEach((k) => expect(CODE_ONLY_CHECK_TYPES, `${challenge.id}: ${k.label}`).toContain(k.type))
+      })
+    })
+  } else {
+    it('curso con vista previa: los retos usan vista previa salvo los que ponen preview: false', () => {
+      flattenChallenges(course).forEach(({ challenge }) => {
+        expect(isCodeOnly(challenge), challenge.id).toBe(challenge.preview === false)
+      })
+    })
+  }
 })
