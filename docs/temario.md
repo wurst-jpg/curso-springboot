@@ -138,5 +138,6 @@ con este bloque). Si un reto pide añadir algo, se parte de este texto.
 - **Ningún concepto antes de su módulo.** Por ejemplo, nada de `@Entity` antes de m03 ni de
   `JpaRepository` antes de m06 (ni en los archivos de inicio, ni en las soluciones, ni en los checks).
   Única excepción: el esqueleto del proyecto (el `pom.xml` base y `BibliotecaApplication.java`) puede
-  verse desde m00 como archivo de inicio, pero ningún reto pide tocarlo ni lo comprueba antes de m01.
+  verse desde m00 como archivo de inicio, pero antes de m01 ningún reto pide entenderlo ni cambiar su
+  código (en m00, como mucho, un comentario).
 - La solución de cada reto debe pasar sus propios checks (`npm test` lo comprueba).
