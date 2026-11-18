@@ -111,4 +111,49 @@ describe('módulo m04 Enums en entidades', () => {
       expect(etiquetas(c, { ...c.files, '/src/main/java/com/biblioteca/models/CategoriaLibro.java': conSolucion(c)[CATEGORIA] })).toContain('Existe models/helpers/CategoriaLibro.java')
     })
   })
+
+  describe('lección 2: @Enumerated(EnumType.STRING) en Libro', () => {
+    it('tiene 3 retos', () => {
+      expect(modulo.lessons[1].challenges.map((c) => c.id)).toEqual(['m04-l2-c1', 'm04-l2-c2', 'm04-l2-c3'])
+    })
+
+    it('detecta categoria como String (error típico) y el import que falta', () => {
+      const c = reto('m04-l2-c1')
+      const str = solucionCon(c, LIBRO, (t) => t.replaceAll('CategoriaLibro categoria', 'String categoria').replace('public CategoriaLibro getCategoria', 'public String getCategoria'))
+      expect(mensajes(c, str)).toContain('categoria debe ser del tipo enum CategoriaLibro, no String: así solo se aceptan las categorías de la lista.')
+      expect(etiquetas(c, solucionCon(c, LIBRO, (t) => t.replace(/import com\.biblioteca\.models\.helpers\.CategoriaLibro;\n/, '')))).toEqual(['Importa CategoriaLibro de com.biblioteca.models.helpers'])
+    })
+
+    it('acepta @Column antes que @Enumerated, en la misma línea y con value =', () => {
+      const c = reto('m04-l2-c2')
+      const files = solucionCon(c, LIBRO, (t) =>
+        t.replace('  @Enumerated(EnumType.STRING)\n  @Column(nullable = false)\n', '  @Column(nullable=false) @Enumerated(value = EnumType.STRING)\n'),
+      )
+      expect(etiquetas(c, files)).toEqual([])
+      const star = solucionCon(c, LIBRO, (t) => t.replace(/import jakarta\.persistence\.[A-Za-z]+;\n/g, '').replace('package com.biblioteca.models;\n', 'package com.biblioteca.models;\nimport jakarta.persistence.*;\n'))
+      expect(etiquetas(c, star)).toEqual([])
+    })
+
+    it('rechaza ORDINAL, @Enumerated sin paréntesis y unique = true en categoria', () => {
+      const c = reto('m04-l2-c2')
+      expect(etiquetas(c, solucionCon(c, LIBRO, (t) => t.replace('EnumType.STRING', 'EnumType.ORDINAL')))).toEqual([
+        '@Enumerated(EnumType.STRING) encima de categoria',
+        'No usa EnumType.ORDINAL',
+      ])
+      expect(etiquetas(c, solucionCon(c, LIBRO, (t) => t.replace('@Enumerated(EnumType.STRING)', '@Enumerated')))).toContain('@Enumerated lleva (EnumType.STRING)')
+      expect(mensajes(c, solucionCon(c, LIBRO, (t) => t.replace('@Column(nullable = false)\n  private CategoriaLibro', '@Column(nullable = false, unique = true)\n  private CategoriaLibro')))).toEqual([
+        'categoria no puede ser unique = true: muchos libros comparten categoría (con unique solo cabría una novela en toda la biblioteca).',
+      ])
+    })
+
+    it('un @Enumerated comentado no cuenta', () => {
+      const c = reto('m04-l2-c2')
+      expect(etiquetas(c, solucionCon(c, LIBRO, (t) => t.replace('  @Enumerated(EnumType.STRING)', '  // @Enumerated(EnumType.STRING)')))).toContain('@Enumerated(EnumType.STRING) encima de categoria')
+    })
+
+    it('el reto de arreglar trae ORDINAL y unique = true de inicio', () => {
+      const c = reto('m04-l2-c3')
+      expect(etiquetas(c, c.files)).toEqual(expect.arrayContaining(['No usa EnumType.ORDINAL', 'categoria no es única']))
+    })
+  })
 })

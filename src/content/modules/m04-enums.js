@@ -258,6 +258,24 @@ ${
 `
 }
 
+// ---------- Ayudas para escribir las expresiones regulares (las mismas que en m03) ----------
+// Principio de línea, con otras anotaciones delante si las hay. Así "// @Enumerated(...)" (un
+// comentario) no cuenta: la línea empieza por //, no por @.
+const ANOTACION = '@\\w+(?:\\s*\\([^)]*\\))?'
+const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}\\s*)*`
+// Una anotación (anot) encima de una declaración (decl), con otras anotaciones en medio.
+const sobre = (anot, decl) => `${LINEA}${anot}(?:\\s*${ANOTACION})*\\s*${decl}`
+// @Column(...) que contiene todas las condiciones, en cualquier orden (lookaheads).
+const columna = (...conds) => `@Column\\s*\\(${conds.map((c) => `(?=[^)]*\\b${c})`).join('')}[^)]*\\)`
+const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
+const importaHelper = (clase) => `(?:^|\\n)[ \\t]*import\\s+com\\s*\\.\\s*biblioteca\\s*\\.\\s*models\\s*\\.\\s*helpers\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
+const campo = (tipo, nombre) => `private\\s+${tipo}\\s+${nombre}\\b`
+const getter = (tipo, metodo, atributo) => `public\\s+${tipo}\\s+${metodo}\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+(?:this\\s*\\.\\s*)?${atributo}\\s*;`
+const setter = (metodo, tipo) => `void\\s+${metodo}\\s*\\(\\s*${tipo}\\s+\\w+\\s*\\)`
+
+const NULLABLE = 'nullable\\s*=\\s*false\\b'
+const ENUM_STRING = '@Enumerated\\s*\\(\\s*(?:value\\s*=\\s*)?EnumType\\s*\\.\\s*STRING\\s*\\)'
+
 const proyecto = (extra = {}) => ({ '/pom.xml': POM, [APP]: APP_CODE, ...extra })
 
 // ---------- Checks de los archivos enum ----------
@@ -297,6 +315,100 @@ const enumChecks = (nombre, ruta, valores) => [
     message: `Los valores de ${nombre} deben ser exactamente ${valores.join(', ')}, en ese orden y en MAYÚSCULAS.`,
   },
 ]
+
+// ---------- Checks del campo enum dentro de una entidad ----------
+// (entidad, archivo, enum, atributo, getter, setter)
+const campoEnum = (ent, ruta, tipo, atr, get, set) => [
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: importaHelper(tipo),
+    label: `Importa ${tipo} de com.biblioteca.models.helpers`,
+    message: `Falta import com.biblioteca.models.helpers.${tipo}; en ${ent}.java (el enum está en otro paquete).`,
+  },
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: `${LINEA}${campo(tipo, atr)}`,
+    label: `${ent} tiene private ${tipo} ${atr}`,
+    message: `Falta el atributo private ${tipo} ${atr}; en ${ent}.java.`,
+  },
+  {
+    type: 'file-excludes',
+    path: ruta,
+    pattern: `String\\s+${atr}\\b`,
+    label: `${atr} no es un String`,
+    message:
+      atr === 'categoria'
+        ? 'categoria debe ser del tipo enum CategoriaLibro, no String: así solo se aceptan las categorías de la lista.'
+        : `${atr} debe ser del tipo enum ${tipo}, no String.`,
+  },
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: `(?=[\\s\\S]*${getter(tipo, get, atr)})[\\s\\S]*${setter(set, tipo)}`,
+    label: `${get} y ${set} usan ${tipo}`,
+    message: `Faltan public ${tipo} ${get}() (que devuelve ${atr}) y public void ${set}(${tipo} ${atr}).`,
+  },
+]
+
+// @Enumerated(EnumType.STRING) y @Column(nullable = false) sobre el campo enum, sin ORDINAL ni unique.
+const enumGuardado = (ent, ruta, tipo, atr) => [
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: importa('Enumerated'),
+    label: 'Importa Enumerated de jakarta.persistence',
+    message: `Falta import jakarta.persistence.Enumerated; en ${ent}.java.`,
+  },
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: importa('EnumType'),
+    label: 'Importa EnumType de jakarta.persistence',
+    message: `Falta import jakarta.persistence.EnumType; en ${ent}.java.`,
+  },
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: sobre(ENUM_STRING, campo(tipo, atr)),
+    label: `@Enumerated(EnumType.STRING) encima de ${atr}`,
+    message: `Encima de private ${tipo} ${atr}; falta @Enumerated(EnumType.STRING), para que en la tabla se guarde el nombre del valor.`,
+  },
+  {
+    type: 'file-excludes',
+    path: ruta,
+    pattern: 'EnumType\\s*\\.\\s*ORDINAL',
+    label: 'No usa EnumType.ORDINAL',
+    message: 'Cambia EnumType.ORDINAL por EnumType.STRING: ORDINAL guarda la posición (0, 1, 2…) y se rompe si alguien cambia el orden del enum.',
+  },
+  {
+    type: 'file-excludes',
+    path: ruta,
+    pattern: '@Enumerated(?!\\s*\\()',
+    label: '@Enumerated lleva (EnumType.STRING)',
+    message: '@Enumerated solo, sin paréntesis, guarda la posición (ORDINAL). Escríbelo completo: @Enumerated(EnumType.STRING).',
+  },
+  {
+    type: 'file-includes',
+    path: ruta,
+    pattern: sobre(columna(NULLABLE), campo(tipo, atr)),
+    label: `${atr} es obligatorio (nullable = false)`,
+    message: `Encima de private ${tipo} ${atr}; falta @Column con nullable = false.`,
+  },
+  {
+    type: 'file-excludes',
+    path: ruta,
+    pattern: `unique\\s*=\\s*true\\b[^)]*\\)(?:\\s*${ANOTACION})*\\s*private\\s+\\w+\\s+${atr}\\b`,
+    label: `${atr} no es ${atr === 'categoria' ? 'única' : 'único'}`,
+    message:
+      atr === 'categoria'
+        ? 'categoria no puede ser unique = true: muchos libros comparten categoría (con unique solo cabría una novela en toda la biblioteca).'
+        : `${atr} no puede ser unique = true: muchos socios son del mismo tipo (con unique solo cabría un estudiante).`,
+  },
+]
+const categoriaCampo = campoEnum('Libro', LIBRO, 'CategoriaLibro', 'categoria', 'getCategoria', 'setCategoria')
+const categoriaGuardada = enumGuardado('Libro', LIBRO, 'CategoriaLibro', 'categoria')
 
 const modulo = {
   id: 'm04',
@@ -369,6 +481,97 @@ public enum CategoriaLibro {
           ],
           solution: { [TIPO]: TIPO_CODE },
           checks: enumChecks('TipoSocio', TIPO, ['ESTUDIANTE', 'DOCENTE', 'EXTERNO']),
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm04-l2',
+      title: 'Guardar el enum en la tabla: @Enumerated(EnumType.STRING)',
+      explanation: `Ahora \`Libro\` tendrá una casilla \`categoria\`. El tipo del atributo es el **enum**, no \`String\`:
+
+\`\`\`java
+import com.biblioteca.models.helpers.CategoriaLibro;
+...
+private CategoriaLibro categoria;
+\`\`\`
+
+(El \`import\` hace falta porque el enum vive en otro paquete, \`helpers\`.)
+
+**¿Cómo se guarda un enum en una columna?** JPA tiene dos formas, y la que usa si no le dices nada es la mala:
+
+- \`EnumType.ORDINAL\` (la de por defecto): guarda la **posición** en la lista. NOVELA = 0, CIENCIA = 1, HISTORIA = 2, INFANTIL = 3.
+- \`EnumType.STRING\`: guarda el **nombre**: \`"NOVELA"\`, \`"HISTORIA"\`…
+
+Imagina que las estanterías de la biblioteca están **numeradas** y en cada ficha apuntas "estantería 2". Un día alguien pone una estantería nueva al principio y todas cambian de número: tus fichas ahora mandan a la estantería equivocada. Eso pasa con ORDINAL: si un compañero añade \`POESIA\` al principio del enum, HISTORIA pasa a ser 3 y **todos los libros guardados con un 2 cambian de categoría sin que nadie se entere**. Si apuntas "estantería de Historia" (STRING), da igual cómo se reordenen. Por eso siempre:
+
+\`\`\`java
+@Enumerated(EnumType.STRING)
+@Column(nullable = false)
+private CategoriaLibro categoria;
+\`\`\`
+
+- \`@Enumerated\` se importa de \`jakarta.persistence\`, igual que \`EnumType\`. Escríbelo **con** el paréntesis: \`@Enumerated\` solo significa ORDINAL.
+- \`@Column(nullable = false)\`: todo libro tiene que tener categoría.
+- **Nunca** \`unique = true\` en una categoría: haría que solo pudiera existir **un** libro de cada categoría. Es un error que se ha visto en clase.`,
+      challenges: [
+        {
+          id: 'm04-l2-c1',
+          title: 'Añade la categoría al libro',
+          instructions: `En \`Libro.java\`:
+
+1. Añade \`import com.biblioteca.models.helpers.CategoriaLibro;\`
+2. Debajo de \`autor\`, añade el atributo **private CategoriaLibro categoria;** (del tipo del enum, no \`String\`).
+3. Al final de la clase, añade \`public CategoriaLibro getCategoria()\` (que devuelve \`categoria\`) y \`public void setCategoria(CategoriaLibro categoria)\`.
+
+Las anotaciones las ponemos en el reto siguiente.`,
+          files: proyecto({ [LIBRO]: libro(), [CATEGORIA]: CATEGORIA_CODE, [SOCIO]: socio(), [TIPO]: TIPO_CODE }),
+          activeFile: LIBRO,
+          hints: [
+            'El tipo del atributo es el nombre del enum, igual que antes escribías String o Long.',
+            'Como CategoriaLibro está en el paquete com.biblioteca.models.helpers, hay que importarlo debajo de la línea package.',
+            'private CategoriaLibro categoria; y al final public CategoriaLibro getCategoria() { return categoria; } y public void setCategoria(CategoriaLibro categoria) { this.categoria = categoria; }',
+          ],
+          solution: { [LIBRO]: libro('campo') },
+          checks: categoriaCampo,
+          xp: 10,
+        },
+        {
+          id: 'm04-l2-c2',
+          title: 'Guarda el nombre, no la posición',
+          instructions: `Ahora dile a JPA cómo guardar la categoría. En \`Libro.java\`:
+
+1. Añade los imports \`import jakarta.persistence.EnumType;\` e \`import jakarta.persistence.Enumerated;\`
+2. Encima de \`private CategoriaLibro categoria;\` escribe **@Enumerated(EnumType.STRING)** y **@Column(nullable = false)**.
+
+No le pongas \`unique = true\`: muchos libros comparten categoría.`,
+          files: proyecto({ [LIBRO]: libro('campo'), [CATEGORIA]: CATEGORIA_CODE, [SOCIO]: socio(), [TIPO]: TIPO_CODE }),
+          activeFile: LIBRO,
+          hints: [
+            'La anotación que dice cómo se guarda un enum es @Enumerated. Entre paréntesis va la forma: EnumType.STRING (el nombre) o EnumType.ORDINAL (la posición).',
+            'Hacen falta dos imports nuevos de jakarta.persistence: Enumerated y EnumType. @Column ya está importado.',
+            'Encima del atributo deben quedar dos líneas: @Enumerated(EnumType.STRING) y @Column(nullable = false)',
+          ],
+          solution: { [LIBRO]: libro('final') },
+          checks: [...categoriaGuardada, ...categoriaCampo],
+          xp: 10,
+        },
+        {
+          id: 'm04-l2-c3',
+          title: 'Arregla la categoría de un compañero',
+          instructions: `Este \`Libro.java\` tiene dos errores en la categoría, los dos vistos en clase:
+
+1. Usa \`@Enumerated(EnumType.ORDINAL)\`: cámbialo a **EnumType.STRING**.
+2. Su \`@Column\` tiene \`unique = true\`: **quítalo**, para que quede \`@Column(nullable = false)\`.`,
+          files: proyecto({ [LIBRO]: libro('mal'), [CATEGORIA]: CATEGORIA_CODE, [SOCIO]: socio(), [TIPO]: TIPO_CODE }),
+          activeFile: LIBRO,
+          hints: [
+            'Mira las dos líneas que hay encima de private CategoriaLibro categoria;',
+            'ORDINAL guarda la posición y se rompe al reordenar el enum; unique = true dejaría una sola novela en toda la biblioteca.',
+            'Deben quedar así: @Enumerated(EnumType.STRING) y @Column(nullable = false)',
+          ],
+          solution: { [LIBRO]: libro('final') },
+          checks: [...categoriaGuardada, ...categoriaCampo],
           xp: 10,
         },
       ],
