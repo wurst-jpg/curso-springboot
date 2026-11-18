@@ -93,12 +93,15 @@ const SOCIO = '/src/main/java/com/biblioteca/models/Socio.java'
 // Principio de línea, con otras anotaciones delante si las hay (@Entity @Table(...) en la misma
 // línea). Así "// @Entity" (un comentario) no cuenta: la línea empieza por //, no por @.
 const ANOTACION = '@\\w+(?:\\s*\\([^)]*\\))?'
-const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}\\s*)*`
+// Espacios y comentarios entre anotaciones (// hasta el final de la línea, /* ... */ y /** ... */).
+// El // se come la línea entera (lookahead), así no puede "saltarse" un // @Id comentado.
+const HUECO = '(?:\\s|//[^\\n]*(?=\\n|$)|/\\*[\\s\\S]*?\\*/)*'
+const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}${HUECO})*`
 // Una anotación (anot) justo encima de una declaración (decl), con otras anotaciones en medio.
-const sobre = (anot, decl) => `${LINEA}${anot}(?:\\s*${ANOTACION})*\\s*${decl}`
+const sobre = (anot, decl) => `${LINEA}${anot}(?:${HUECO}${ANOTACION})*${HUECO}${decl}`
 // @Column(...) que contiene todas las condiciones, en cualquier orden (lookaheads).
 const columna = (...conds) => `@Column\\s*\\(${conds.map((c) => `(?=[^)]*\\b${c})`).join('')}[^)]*\\)`
-const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
+const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase}\\b)\\s*;?`
 const campo = (tipo, nombre) => `private\\s+${tipo}\\s+${nombre}\\b`
 
 const NULLABLE = 'nullable\\s*=\\s*false\\b'
@@ -288,7 +291,7 @@ const libroColumnas = [
   {
     type: 'file-excludes',
     path: LIBRO,
-    pattern: `${columna(UNIQUE)}(?:\\s*${ANOTACION})*\\s*${campo('String', 'titulo')}`,
+    pattern: sobre(columna(UNIQUE), campo('String', 'titulo')),
     label: 'titulo no es único',
     message: 'unique = true va en isbn, no en titulo: dos libros distintos sí pueden llamarse igual.',
   },
@@ -525,7 +528,7 @@ const modulo = {
     {
       id: 'm03-l1',
       title: 'La ficha del libro: @Entity, @Id y @Table',
-      explanation: `Antes de los ordenadores, las bibliotecas tenían un **fichero**: un mueble con cajones llenos de **fichas de cartulina**, una por libro. Cada ficha tenía las mismas casillas: título, ISBN, autor.
+      explanation: `Antes de los computadores, las bibliotecas tenían un **archivador**: un mueble con cajones llenos de **fichas de cartulina**, una por libro. Cada ficha tenía las mismas casillas: título, ISBN, autor.
 
 Una **entidad** es exactamente eso: el modelo de la ficha. En la base de datos:
 
@@ -542,13 +545,13 @@ Las entidades van en el paquete \`com.biblioteca.models\` (la carpeta \`/src/mai
 **Las anotaciones de hoy** (todas se importan de \`jakarta.persistence\`):
 
 - \`@Entity\` encima de la clase: "esta clase es una ficha: guárdala en una tabla". **Sin \`@Entity\`, la clase es normal y JPA la ignora**: no hay tabla.
+- \`@Table(name = "libros")\` encima de la clase: elige el **nombre del cajón**. Sin ella, la tabla se llamaría como la clase (\`libro\`). Se suele usar el plural.
 - \`@Id\` encima del atributo \`id\`: el **código de registro** de la ficha. Dos fichas nunca tienen el mismo, y así se encuentra cada libro sin confusión. Toda entidad necesita uno.
 - \`@GeneratedValue(strategy = GenerationType.UUID)\` junto al \`@Id\`: **tú no eliges el código**, se crea solo al guardar el libro. Por eso el \`id\` no tiene setter.
 
 **¿Qué es un UUID?** Mira la etiqueta de tu nevera: tiene un **número de serie** largo y raro, como \`3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b77\`. Nadie lo eligió a mano y no se repite en ningún otro aparato del mundo. Eso es un UUID. En el proyecto de clase **todas** las entidades usan UUID, así que el atributo es \`private UUID id;\` (la clase \`UUID\` viene de Java: \`import java.util.UUID;\`).
 
 Verás también otra opción muy común: \`@GeneratedValue(strategy = GenerationType.IDENTITY)\` con \`private Long id;\`. Funciona como la **máquina de turnos de la panadería**: la base de datos cuenta 1, 2, 3… Es más corta, pero cualquiera puede **adivinar** el siguiente número (si existe el libro 7, seguro que existe el 8), y hay que preguntar a la base de datos cuál toca. Con UUID no pasa ninguna de las dos cosas. En este curso usamos UUID.
-- \`@Table(name = "libros")\` encima de la clase: elige el **nombre del cajón**. Sin ella, la tabla se llamaría como la clase (\`libro\`). Se suele usar el plural.
 
 Ojo: en tutoriales antiguos verás \`javax.persistence\`. Es el **nombre viejo**: en Spring Boot 4 es siempre \`jakarta.persistence\`. Con \`javax\` el proyecto no compila.
 
@@ -598,7 +601,7 @@ public class Libro {
           files: proyecto({ [LIBRO]: libro({ entity: true, id: true }) }),
           activeFile: LIBRO,
           hints: [
-            'La anotación que hace que el número se ponga solo se llama @GeneratedValue y va junto al @Id.',
+            'La anotación que hace que el código se cree solo se llama @GeneratedValue y va junto al @Id.',
             'Entre paréntesis le dices la estrategia: strategy = GenerationType.UUID (un código largo que nunca se repite).',
             'Quedan dos líneas seguidas encima del id: @Id y debajo @GeneratedValue(strategy = GenerationType.UUID)',
           ],
@@ -719,7 +722,7 @@ Escribe, justo encima de ese constructor, un **constructor vacío**: \`public Li
     {
       id: 'm03-l3',
       title: 'Socio y los errores de siempre',
-      explanation: `Una biblioteca no solo tiene fichas de libros: también tiene un **fichero de socios**, con una ficha por persona (nombre y correo). Es otra entidad, \`Socio\`, y se hace **igual** que \`Libro\`:
+      explanation: `Una biblioteca no solo tiene fichas de libros: también tiene un **archivador de socios**, con una ficha por persona (nombre y correo). Es otra entidad, \`Socio\`, y se hace **igual** que \`Libro\`:
 
 \`\`\`java
 import java.util.UUID;   // UUID viene de Java, no de jakarta
@@ -739,7 +742,7 @@ El getter del id es \`public UUID getId()\`. El correo, como el ISBN, no se pued
 
 **Los tres errores que más se ven en clase** (en un proyecto, a la clase \`Video\` le faltaba el \`@Entity\`):
 
-1. **Olvidar \`@Entity\`.** La clase compila, pero no hay tabla: JPA la trata como una clase normal y más adelante falla al intentar guardarla.
+1. **Olvidar \`@Entity\`.** La clase compila, pero no hay tabla: JPA la trata como una clase normal y falla en cuanto intentes usarla con un repositorio (lo verás en m06).
 2. **Importar de \`javax.persistence\`.** Es el nombre antiguo; en Spring Boot 4 no existe y el proyecto no compila. Siempre \`jakarta.persistence\`.
 3. **Escribir distinto el atributo y el getter.** Si el atributo es \`titlo\` y el getter hace \`return titulo;\`, Java no encuentra \`titulo\` y no compila. Además, el nombre del atributo es el nombre de la columna: un error ahí se queda en la tabla.`,
       challenges: [
@@ -767,7 +770,7 @@ El getter del id es \`public UUID getId()\`. El correo, como el ISBN, no se pued
             {
               type: 'file-includes',
               path: LIBRO,
-              pattern: sobre(columna(NULLABLE), campo('String', 'titulo')),
+              pattern: `${LINEA}${campo('String', 'titulo')}`,
               label: 'El atributo se llama titulo, como en el getter',
               message: 'El atributo debe llamarse titulo (como en getTitulo y en el constructor): private String titulo;',
             },
@@ -777,6 +780,13 @@ El getter del id es \`public UUID getId()\`. El correo, como el ISBN, no se pued
               pattern: '\\btitlo\\b',
               label: 'Ya no queda titlo',
               message: 'Todavía aparece titlo (le falta la u): escríbelo titulo.',
+            },
+            {
+              type: 'file-includes',
+              path: LIBRO,
+              pattern: sobre(columna(NULLABLE, largo(150)), campo('String', 'titulo')),
+              label: 'titulo conserva su @Column(nullable = false, length = 150)',
+              message: 'Al renombrar el atributo no borres su anotación: encima de private String titulo; debe seguir @Column(nullable = false, length = 150).',
             },
             ...libroTabla,
             ...libroGenerado,

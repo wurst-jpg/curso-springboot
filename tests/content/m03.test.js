@@ -188,7 +188,7 @@ describe('módulo m03 Entidades', () => {
       expect(fallan(c, files).map((k) => k.label)).toEqual(['La columna de autor se llama "nombre_autor"'])
     })
 
-    it('el constructor vacío: el inicial no lo tiene y "public void Libro()" no vale', () => {
+    it('el constructor vacío: el inicial no lo tiene y "public void Libro()" no sirve', () => {
       const c = reto('m03-l2-c3')
       expect(c.files[LIBRO]).toMatch(/public Libro\(String titulo/)
       const conVoid = solucionCon(c, LIBRO, (t) => t.replace('public Libro() {', 'public void Libro() {'))
@@ -213,13 +213,21 @@ describe('módulo m03 Entidades', () => {
         'No usa javax.persistence',
         'El atributo se llama titulo, como en el getter',
         'Ya no queda titlo',
+        'titulo conserva su @Column(nullable = false, length = 150)',
         'Importa Table de jakarta.persistence',
         'Importa GeneratedValue de jakarta.persistence',
         'Importa GenerationType de jakarta.persistence',
       ])
       // Arreglar solo los imports y @Entity no basta: falta el nombre del atributo.
       const casi = solucionCon(c, LIBRO, (t) => t.replace('private String titulo;', 'private String titlo;'))
-      expect(fallan(c, casi).map((k) => k.label)).toEqual(['El atributo se llama titulo, como en el getter', 'Ya no queda titlo'])
+      expect(fallan(c, casi).map((k) => k.label)).toEqual([
+        'El atributo se llama titulo, como en el getter',
+        'Ya no queda titlo',
+        'titulo conserva su @Column(nullable = false, length = 150)',
+      ])
+      // Si al renombrar se borra el @Column, el mensaje lo dice aparte.
+      const sinColumna = solucionCon(c, LIBRO, (t) => t.replace('  @Column(nullable = false, length = 150)\n', ''))
+      expect(fallan(c, sinColumna).map((k) => k.label)).toEqual(['titulo conserva su @Column(nullable = false, length = 150)'])
     })
 
     it('el reto de crear Socio no trae Socio.java y sí muestra Libro como modelo', () => {
@@ -277,6 +285,38 @@ public class Socio {
       expect(con((t) => t.replaceAll('jakarta.persistence', 'javax.persistence')).map((k) => k.label)).toContain('No usa javax.persistence')
       expect(con((t) => t.replace('package com.biblioteca.models;', 'package com.biblioteca;')).map((k) => k.label)).toEqual(['Está en el paquete com.biblioteca.models'])
       expect(con((t) => t.replace(/ {2}public Socio\(\) \{\n {2}\}\n\n/, '')).map((k) => k.label)).toEqual(['Socio tiene un constructor vacío'])
+    })
+  })
+
+  describe('comentarios junto a las anotaciones', () => {
+    const libroSol = (id) => conSolucion(reto(id))[LIBRO]
+    const pasaCon = (id, cambio) => fallan(reto(id), { ...conSolucion(reto(id)), [LIBRO]: cambio(libroSol(id)) }).map((k) => k.label)
+
+    it('acepta un comentario al final de la línea de una anotación', () => {
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('  @Id\n', '  @Id // clave\n'))).toEqual([])
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('\n@Entity\n', '\n@Entity // ficha\n'))).toEqual([])
+      expect(pasaCon('m03-l2-c1', (t) => t.replace('@Column(nullable = false, length = 150)\n', '@Column(nullable = false, length = 150) // nota\n'))).toEqual([])
+    })
+
+    it('acepta una línea de comentario entre anotaciones y entre la anotación y el atributo', () => {
+      expect(pasaCon('m03-l1-c2', (t) => t.replace('  @Id\n', '  @Id\n  // la clave se crea sola\n'))).toEqual([])
+      expect(pasaCon('m03-l1-c2', (t) => t.replace('  private UUID id;', '  /* código único */\n  private UUID id;'))).toEqual([])
+    })
+
+    it('acepta Javadoc antes de la clase y entre las anotaciones y la clase', () => {
+      expect(pasaCon('m03-l1-c3', (t) => t.replace('\n@Entity\n', '\n/**\n * Ficha de un libro.\n */\n@Entity\n'))).toEqual([])
+      expect(pasaCon('m03-l1-c3', (t) => t.replace('\npublic class Libro', '\n/** Ficha de un libro. */\npublic class Libro'))).toEqual([])
+    })
+
+    it('una anotación comentada sigue sin contar', () => {
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('  @Id\n', '  /* @Id */\n'))).toContain('@Id está encima de private UUID id')
+      expect(pasaCon('m03-l1-c3', (t) => t.replace('\n@Entity\n@Table(name = "libros")\n', '\n@Table(name = "libros") // @Entity\n'))).toContain('Libro tiene @Entity encima de la clase')
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('  @Id\n', '  // ojo @Id\n'))).toContain('@Id está encima de private UUID id')
+    })
+
+    it('los imports no aceptan clases que solo empiezan igual (IdClass, EntityListeners)', () => {
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('import jakarta.persistence.Id;', 'import jakarta.persistence.IdClass;'))).toEqual(['Importa Id de jakarta.persistence'])
+      expect(pasaCon('m03-l1-c1', (t) => t.replace('import jakarta.persistence.Entity;', 'import jakarta.persistence.EntityListeners;'))).toEqual(['Importa Entity de jakarta.persistence'])
     })
   })
 })

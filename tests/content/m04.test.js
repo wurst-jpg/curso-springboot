@@ -203,4 +203,31 @@ describe('módulo m04 Enums en entidades', () => {
       expect(etiquetas(c, files)).toEqual([])
     })
   })
+
+  describe('comentarios junto a las anotaciones e imports exactos', () => {
+    const con = (id, cambio) => {
+      const c = reto(id)
+      return etiquetas(c, solucionCon(c, LIBRO, cambio))
+    }
+
+    it('acepta comentarios al final de la línea y líneas de comentario en medio', () => {
+      expect(con('m04-l2-c2', (t) => t.replace('@Enumerated(EnumType.STRING)\n', '@Enumerated(EnumType.STRING) // guarda el nombre\n'))).toEqual([])
+      expect(con('m04-l2-c2', (t) => t.replace('@Column(nullable = false)\n  private CategoriaLibro', '@Column(nullable = false) // nota\n  private CategoriaLibro'))).toEqual([])
+      expect(con('m04-l2-c2', (t) => t.replace('@Enumerated(EnumType.STRING)\n', '@Enumerated(EnumType.STRING)\n  // obligatoria\n'))).toEqual([])
+      expect(con('m04-l2-c2', (t) => t.replace('  private CategoriaLibro categoria;', '  /** La categoría. */\n  private CategoriaLibro categoria;'))).toEqual([])
+    })
+
+    it('un @Enumerated dentro de /* */ no cuenta', () => {
+      expect(con('m04-l2-c2', (t) => t.replace('  @Enumerated(EnumType.STRING)\n', '  /* @Enumerated(EnumType.STRING) */\n'))).toContain('@Enumerated(EnumType.STRING) encima de categoria')
+    })
+
+    it('unique = true sigue detectándose con un comentario en medio', () => {
+      expect(con('m04-l2-c2', (t) => t.replace('@Column(nullable = false)\n  private CategoriaLibro', '@Column(nullable = false, unique = true) // ojo\n  private CategoriaLibro'))).toEqual(['categoria no es única'])
+    })
+
+    it('los imports no aceptan clases que solo empiezan igual (EnumeratedValue)', () => {
+      expect(con('m04-l2-c2', (t) => t.replace('import jakarta.persistence.Enumerated;', 'import jakarta.persistence.EnumeratedValue;'))).toEqual(['Importa Enumerated de jakarta.persistence'])
+      expect(con('m04-l2-c1', (t) => t.replace('import com.biblioteca.models.helpers.CategoriaLibro;', 'import com.biblioteca.models.helpers.CategoriaLibroX;'))).toEqual(['Importa CategoriaLibro de com.biblioteca.models.helpers'])
+    })
+  })
 })

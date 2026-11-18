@@ -264,13 +264,16 @@ ${
 // Principio de línea, con otras anotaciones delante si las hay. Así "// @Enumerated(...)" (un
 // comentario) no cuenta: la línea empieza por //, no por @.
 const ANOTACION = '@\\w+(?:\\s*\\([^)]*\\))?'
-const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}\\s*)*`
+// Espacios y comentarios entre anotaciones (// hasta el final de la línea, /* ... */ y /** ... */).
+// El // se come la línea entera (lookahead), así no puede "saltarse" un // @Id comentado.
+const HUECO = '(?:\\s|//[^\\n]*(?=\\n|$)|/\\*[\\s\\S]*?\\*/)*'
+const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}${HUECO})*`
 // Una anotación (anot) encima de una declaración (decl), con otras anotaciones en medio.
-const sobre = (anot, decl) => `${LINEA}${anot}(?:\\s*${ANOTACION})*\\s*${decl}`
+const sobre = (anot, decl) => `${LINEA}${anot}(?:${HUECO}${ANOTACION})*${HUECO}${decl}`
 // @Column(...) que contiene todas las condiciones, en cualquier orden (lookaheads).
 const columna = (...conds) => `@Column\\s*\\(${conds.map((c) => `(?=[^)]*\\b${c})`).join('')}[^)]*\\)`
-const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
-const importaHelper = (clase) => `(?:^|\\n)[ \\t]*import\\s+com\\s*\\.\\s*biblioteca\\s*\\.\\s*models\\s*\\.\\s*helpers\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
+const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase}\\b)\\s*;?`
+const importaHelper = (clase) => `(?:^|\\n)[ \\t]*import\\s+com\\s*\\.\\s*biblioteca\\s*\\.\\s*models\\s*\\.\\s*helpers\\s*\\.\\s*(?:\\*|${clase}\\b)\\s*;?`
 const campo = (tipo, nombre) => `private\\s+${tipo}\\s+${nombre}\\b`
 const getter = (tipo, metodo, atributo) => `public\\s+${tipo}\\s+${metodo}\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+(?:this\\s*\\.\\s*)?${atributo}\\s*;`
 const setter = (metodo, tipo) => `void\\s+${metodo}\\s*\\(\\s*${tipo}\\s+\\w+\\s*\\)`
@@ -403,7 +406,7 @@ const enumGuardado = (ent, ruta, tipo, atr) => [
   {
     type: 'file-excludes',
     path: ruta,
-    pattern: `unique\\s*=\\s*true\\b[^)]*\\)(?:\\s*${ANOTACION})*\\s*private\\s+\\w+\\s+${atr}\\b`,
+    pattern: sobre(columna(UNIQUE), `private\\s+\\w+\\s+${atr}\\b`),
     label: `${atr} no es ${atr === 'categoria' ? 'única' : 'único'}`,
     message:
       atr === 'categoria'
@@ -455,7 +458,7 @@ const modulo = {
     {
       id: 'm04-l1',
       title: 'Las listas cerradas van en helpers',
-      explanation: `En muchas bibliotecas cada libro lleva una **pegatina de color** en el lomo: roja para novela, verde para ciencia, azul para historia, amarilla para infantil. No hay más colores: es una **lista cerrada**.
+      explanation: `En muchas bibliotecas cada libro lleva una **calcomanía de color** en el lomo: roja para novela, verde para ciencia, azul para historia, amarilla para infantil. No hay más colores: es una **lista cerrada**.
 
 Si la categoría fuera un texto libre (\`String\`), cada bibliotecario escribiría lo que quisiera: "novela", "Novela", "novla", "NOVELAS"… y luego buscar todas las novelas sería un lío. Con un **enum** solo existen los valores de la lista, y si alguien escribe \`NOVLA\` el proyecto ni siquiera compila.
 
@@ -628,7 +631,7 @@ Para guardarlo en la tabla, lo mismo que con la categoría:
 private TipoSocio tipo;
 \`\`\`
 
-\`length = 20\` sobra para el valor más largo (\`ESTUDIANTE\`, 10 letras): con STRING la columna guarda el nombre como texto. Y, como antes, **sin** \`unique = true\`: hay muchos socios estudiantes.
+\`length = 20\` sobra para el valor más largo (\`ESTUDIANTE\`, 10 letras): con STRING la columna guarda el nombre del valor (no su posición). Y, como antes, **sin** \`unique = true\`: hay muchos socios estudiantes.
 
 Resumen para cualquier enum dentro de una entidad:
 
