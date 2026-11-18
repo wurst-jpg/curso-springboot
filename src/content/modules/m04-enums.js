@@ -274,6 +274,8 @@ const getter = (tipo, metodo, atributo) => `public\\s+${tipo}\\s+${metodo}\\s*\\
 const setter = (metodo, tipo) => `void\\s+${metodo}\\s*\\(\\s*${tipo}\\s+\\w+\\s*\\)`
 
 const NULLABLE = 'nullable\\s*=\\s*false\\b'
+const UNIQUE = 'unique\\s*=\\s*true\\b'
+const largo = (n) => `length\\s*=\\s*${n}\\b`
 const ENUM_STRING = '@Enumerated\\s*\\(\\s*(?:value\\s*=\\s*)?EnumType\\s*\\.\\s*STRING\\s*\\)'
 
 const proyecto = (extra = {}) => ({ '/pom.xml': POM, [APP]: APP_CODE, ...extra })
@@ -409,6 +411,39 @@ const enumGuardado = (ent, ruta, tipo, atr) => [
 ]
 const categoriaCampo = campoEnum('Libro', LIBRO, 'CategoriaLibro', 'categoria', 'getCategoria', 'setCategoria')
 const categoriaGuardada = enumGuardado('Libro', LIBRO, 'CategoriaLibro', 'categoria')
+const tipoCampo = campoEnum('Socio', SOCIO, 'TipoSocio', 'tipo', 'getTipo', 'setTipo')
+const tipoGuardado = enumGuardado('Socio', SOCIO, 'TipoSocio', 'tipo')
+// Lo que Socio ya tenía de m03 y no se debe perder en el reto final.
+const socioSigue = [
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@Entity\\b', 'public\\s+class\\s+Socio\\b'),
+    label: 'Socio tiene @Entity encima de la clase',
+    message: 'Falta la anotación @Entity encima de public class Socio: sin ella, Socio no se guarda en ninguna tabla.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@GeneratedValue\\s*\\(\\s*strategy\\s*=\\s*GenerationType\\s*\\.\\s*UUID\\s*\\)', campo('UUID', 'id')),
+    label: 'El id sigue siendo UUID con GenerationType.UUID',
+    message: 'El id de Socio debe seguir siendo private UUID id; con @Id y @GeneratedValue(strategy = GenerationType.UUID).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre(columna(UNIQUE), campo('String', 'correo')),
+    label: 'correo sigue siendo único',
+    message: 'El @Column de correo debe seguir con unique = true: no toques el resto de la ficha.',
+  },
+  {
+    type: 'file-excludes',
+    path: SOCIO,
+    pattern: 'javax\\s*\\.\\s*persistence',
+    label: 'No usa javax.persistence',
+    message: 'Socio.java importa de javax.persistence, el nombre antiguo. En Spring Boot 4 es jakarta.persistence.',
+  },
+]
 
 const modulo = {
   id: 'm04',
@@ -572,6 +607,82 @@ No le pongas \`unique = true\`: muchos libros comparten categoría.`,
           ],
           solution: { [LIBRO]: libro('final') },
           checks: [...categoriaGuardada, ...categoriaCampo],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm04-l3',
+      title: 'Socio y su tipo',
+      explanation: `En la biblioteca, el **carné** de cada socio dice qué tipo de socio es: estudiante, docente o externo. Igual que la categoría del libro, es una **lista cerrada**, así que \`Socio\` usa el enum \`TipoSocio\`.
+
+El error que más se repite en clase es declarar la casilla como texto: \`String rol\` o \`String tipo\` donde tenía que ir el enum. Compila, pero deja que alguien guarde "estudiane" o "profe" y la lista cerrada ya no sirve. Además, si el atributo es \`TipoSocio\`, **el getter y el setter también** tienen que usar \`TipoSocio\`: \`public TipoSocio getTipo()\` y \`public void setTipo(TipoSocio tipo)\`.
+
+Para guardarlo en la tabla, lo mismo que con la categoría:
+
+\`\`\`java
+@Enumerated(EnumType.STRING)
+@Column(nullable = false, length = 20)
+private TipoSocio tipo;
+\`\`\`
+
+\`length = 20\` sobra para el valor más largo (\`ESTUDIANTE\`, 10 letras): con STRING la columna guarda el nombre como texto. Y, como antes, **sin** \`unique = true\`: hay muchos socios estudiantes.
+
+Resumen para cualquier enum dentro de una entidad:
+
+1. El enum va en \`models/helpers\` y se importa en la entidad.
+2. El atributo, el getter y el setter usan **el enum**, nunca \`String\`.
+3. \`@Enumerated(EnumType.STRING)\`, nunca ORDINAL.
+4. \`@Column(nullable = false)\` si es obligatorio, y **nunca** \`unique = true\`.`,
+      challenges: [
+        {
+          id: 'm04-l3-c1',
+          title: 'El tipo no es un texto',
+          instructions: `En \`Socio.java\` alguien declaró \`private String tipo;\` y su getter y setter con \`String\`. Cámbialo para usar el enum:
+
+1. Añade \`import com.biblioteca.models.helpers.TipoSocio;\`
+2. El atributo debe ser **private TipoSocio tipo;**
+3. El getter, **public TipoSocio getTipo()**, y el setter, **public void setTipo(TipoSocio tipo)**.`,
+          files: proyecto({ [SOCIO]: socio('string'), [TIPO]: TIPO_CODE, [LIBRO]: libro('final'), [CATEGORIA]: CATEGORIA_CODE }),
+          activeFile: SOCIO,
+          hints: [
+            'Busca la palabra String en las líneas de tipo: aparece tres veces (atributo, getter y setter).',
+            'TipoSocio está en com.biblioteca.models.helpers: impórtalo debajo de package, como hace Libro.java con CategoriaLibro.',
+            'Quedan: private TipoSocio tipo; public TipoSocio getTipo() { return tipo; } y public void setTipo(TipoSocio tipo) { this.tipo = tipo; }',
+          ],
+          solution: { [SOCIO]: socio('campo') },
+          checks: tipoCampo,
+          xp: 10,
+        },
+        {
+          id: 'm04-l3-c2',
+          title: 'Socio completo: guarda su tipo',
+          instructions: `Último reto del módulo: termina la ficha del socio en \`Socio.java\`.
+
+1. Añade los imports \`import jakarta.persistence.EnumType;\` e \`import jakarta.persistence.Enumerated;\`
+2. Encima de \`private TipoSocio tipo;\` escribe **@Enumerated(EnumType.STRING)** y **@Column(nullable = false, length = 20)**.
+3. Sin \`unique = true\` en \`tipo\`, y sin tocar el resto de la ficha (\`@Entity\`, el id UUID y el \`correo\` único).`,
+          files: proyecto({ [SOCIO]: socio('campo'), [TIPO]: TIPO_CODE, [LIBRO]: libro('final'), [CATEGORIA]: CATEGORIA_CODE }),
+          activeFile: SOCIO,
+          hints: [
+            'Es lo mismo que hiciste con categoria en Libro.java (está abierto en otra pestaña para que lo mires).',
+            'Dos imports nuevos de jakarta.persistence (Enumerated y EnumType) y dos líneas encima del atributo tipo.',
+            'Encima de private TipoSocio tipo; deben quedar @Enumerated(EnumType.STRING) y @Column(nullable = false, length = 20)',
+          ],
+          solution: { [SOCIO]: socio('final') },
+          checks: [
+            ...tipoGuardado,
+            {
+              type: 'file-includes',
+              path: SOCIO,
+              pattern: sobre(columna(largo(20)), campo('TipoSocio', 'tipo')),
+              label: 'tipo tiene length = 20',
+              message: 'El @Column de tipo debe llevar length = 20.',
+            },
+            ...tipoCampo,
+            ...socioSigue,
+            ...enumChecks('TipoSocio', TIPO, ['ESTUDIANTE', 'DOCENTE', 'EXTERNO']).slice(0, 3),
+          ],
           xp: 10,
         },
       ],

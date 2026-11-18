@@ -156,4 +156,40 @@ describe('módulo m04 Enums en entidades', () => {
       expect(etiquetas(c, c.files)).toEqual(expect.arrayContaining(['No usa EnumType.ORDINAL', 'categoria no es única']))
     })
   })
+
+  describe('lección 3: Socio y su TipoSocio', () => {
+    it('tiene 2 retos y el módulo suma 7', () => {
+      expect(modulo.lessons.map((l) => l.id)).toEqual(['m04-l1', 'm04-l2', 'm04-l3'])
+      expect(modulo.lessons[2].challenges.map((c) => c.id)).toEqual(['m04-l3-c1', 'm04-l3-c2'])
+      expect(retos()).toHaveLength(7)
+    })
+
+    it('el inicio de l3-c1 tiene String tipo y lo detecta', () => {
+      const c = reto('m04-l3-c1')
+      expect(c.files[SOCIO]).toMatch(/private String tipo;/)
+      expect(mensajes(c, c.files)).toContain('tipo debe ser del tipo enum TipoSocio, no String.')
+      const soloCampo = solucionCon(c, SOCIO, (t) => t.replace('public TipoSocio getTipo', 'public String getTipo'))
+      expect(etiquetas(c, soloCampo)).toEqual(['getTipo y setTipo usan TipoSocio'])
+    })
+
+    it('el reto final integra: sin @Enumerated, con ORDINAL, unique o sin @Entity falla', () => {
+      const c = reto('m04-l3-c2')
+      const con = (cambio) => etiquetas(c, solucionCon(c, SOCIO, cambio))
+      expect(con((t) => t.replace('  @Enumerated(EnumType.STRING)\n', ''))).toContain('@Enumerated(EnumType.STRING) encima de tipo')
+      expect(con((t) => t.replace('EnumType.STRING', 'EnumType.ORDINAL'))).toContain('No usa EnumType.ORDINAL')
+      expect(con((t) => t.replace('@Column(nullable = false, length = 20)', '@Column(nullable = false, unique = true, length = 20)'))).toEqual(['tipo no es único'])
+      expect(con((t) => t.replace('\n@Entity\n', '\n'))).toEqual(['Socio tiene @Entity encima de la clase'])
+      expect(con((t) => t.replace('unique = true, length = 150', 'length = 150'))).toEqual(['correo sigue siendo único'])
+    })
+
+    it('acepta el reto final escrito de otra forma', () => {
+      const c = reto('m04-l3-c2')
+      const files = solucionCon(c, SOCIO, (t) =>
+        t
+          .replace('  @Enumerated(EnumType.STRING)\n  @Column(nullable = false, length = 20)\n', '  @Column(length=20,nullable=false) @Enumerated(EnumType.STRING) ')
+          .replace('import com.biblioteca.models.helpers.TipoSocio;', 'import com.biblioteca.models.helpers.*;'),
+      )
+      expect(etiquetas(c, files)).toEqual([])
+    })
+  })
 })
