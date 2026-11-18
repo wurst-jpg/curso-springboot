@@ -227,4 +227,54 @@ describe('módulo m06 Repositorios (Spring Boot)', () => {
       )
     })
   })
+  describe('lección 3: lo que el bibliotecario ya sabe hacer', () => {
+    it('chuleta 1: tolera espacios, comillas de código y paréntesis', () => {
+      const c = reto('m06-l3-c1')
+      const texto = resuelto(c)[CHULETA]
+        .replace('-> save', '->   `save(libro)`')
+        .replace('-> findAll', '->findAll()')
+      expect(fallan(c, resuelto(c, { [CHULETA]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('chuleta 1: detecta delete en vez de deleteById', () => {
+      const c = reto('m06-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, CHULETA, '-> deleteById', '-> delete'))).toEqual([expect.stringMatching(/deleteById/)])
+    })
+
+    it('chuleta 2: detecta existById sin la s (error de clase)', () => {
+      const c = reto('m06-l3-c2')
+      const msgs = mensajesQueFallan(c, variar(c, CHULETA, '-> existsById', '-> existById'))
+      expect(msgs).toContainEqual(expect.stringMatching(/existsById/))
+      expect(msgs).toContainEqual(expect.stringMatching(/con s/))
+    })
+
+    it('chuleta 2: la caja de findById es Optional', () => {
+      const c = reto('m06-l3-c2')
+      expect(mensajesQueFallan(c, variar(c, CHULETA, '-> Optional', '-> List'))).toEqual([expect.stringMatching(/Optional/)])
+      // Sigue la chuleta del reto anterior, ya rellena.
+      expect(c.files[CHULETA].startsWith(resuelto(reto('m06-l3-c1'))[CHULETA])).toBe(true)
+    })
+
+    it('reto final: el inicio trae los tres errores típicos y la solución los arregla', () => {
+      const c = reto('m06-l3-c3')
+      const msgs = mensajesQueFallan(c, c.files)
+      expect(msgs).toContainEqual(expect.stringMatching(/sin los dos datos/))
+      expect(msgs).toContainEqual(expect.stringMatching(/id de Socio es UUID/))
+      expect(msgs).toContainEqual(expect.stringMatching(/Falta @Repository en la línea de arriba de public interface ISocioRepositorio/))
+      expect(msgs).toContainEqual(expect.stringMatching(/IPrestamoRepositorio guarda préstamos/))
+      ;[LIBRO_REPO, SOCIO_REPO, PRESTAMO_REPO].forEach((p) => expect(c.solution[p], p).toBeDefined())
+    })
+
+    it('reto final: revisa los tres repositorios', () => {
+      const c = reto('m06-l3-c3')
+      ;['ILibroRepositorio', 'ISocioRepositorio', 'IPrestamoRepositorio'].forEach((n) => {
+        expect(c.checks.some((k) => k.path === `${REPOS}/${n}.java`), n).toBe(true)
+      })
+    })
+  })
+
+  it('tiene 3 lecciones y 8 retos', () => {
+    expect(modulo.lessons.map((l) => l.id)).toEqual(['m06-l1', 'm06-l2', 'm06-l3'])
+    expect(retos).toHaveLength(8)
+  })
 })

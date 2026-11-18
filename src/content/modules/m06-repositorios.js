@@ -496,6 +496,9 @@ const chksRepo = (path, entidad) => [
   chkEntidadCorrecta(path, entidad),
 ]
 
+// Con varios archivos, cada label dice a qué archivo se refiere.
+const enArchivo = (checks) => checks.map((k) => ({ ...k, label: `${nombreDe(k.path)}: ${k.label}` }))
+
 const PRESTAMO_REPO_A_MEDIAS = `package com.biblioteca.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -520,6 +523,83 @@ const conTodo = (extra = {}) => ({
 const LIBRO_REPO_VACIO = `package com.biblioteca.repositories;
 
 public interface ILibroRepositorio {
+}
+`
+
+const CHULETA_1 = `# Lo que puedo pedirle al bibliotecario (ILibroRepositorio)
+
+Escribe, después de cada flecha (->), el método que lo hace:
+
+Guardar un libro nuevo o sus cambios ->
+Traer todos los libros ->
+Buscar un libro por su id ->
+Borrar un libro por su id ->
+`
+
+const CHULETA_1_HECHA = `# Lo que puedo pedirle al bibliotecario (ILibroRepositorio)
+
+Escribe, después de cada flecha (->), el método que lo hace:
+
+Guardar un libro nuevo o sus cambios -> save
+Traer todos los libros -> findAll
+Buscar un libro por su id -> findById
+Borrar un libro por su id -> deleteById
+`
+
+const CHULETA_2 = `${CHULETA_1_HECHA}
+Contar cuántos libros hay ->
+Saber si existe un libro con ese id ->
+findById no da el libro suelto: lo da dentro de una caja llamada ->
+`
+
+const CHULETA_2_HECHA = `${CHULETA_1_HECHA}
+Contar cuántos libros hay -> count
+Saber si existe un libro con ese id -> existsById
+findById no da el libro suelto: lo da dentro de una caja llamada -> Optional
+`
+
+// Una línea de la chuleta con su respuesta (acepta \`save\`, save() o save(libro)).
+const chkChuleta = (pregunta, metodo, message) => ({
+  type: 'file-includes',
+  path: CHULETA,
+  pattern: `${pregunta}\\s*->[ \\t]*\`?${metodo}\\b`,
+  label: `${pregunta} -> ${metodo}`,
+  message,
+})
+
+// Reto final: los tres repositorios con un error típico de clase cada uno.
+const LIBRO_REPO_SIN_DATOS = `package com.biblioteca.repositories;
+
+import com.biblioteca.models.Libro;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface ILibroRepositorio extends JpaRepository {
+}
+`
+
+const SOCIO_REPO_CON_LONG = `package com.biblioteca.repositories;
+
+import com.biblioteca.models.Socio;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+public interface ISocioRepositorio extends JpaRepository<Socio, Long> {
+}
+`
+
+const PRESTAMO_REPO_COPIADO = `package com.biblioteca.repositories;
+
+import com.biblioteca.models.Prestamo;
+import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface IPrestamoRepositorio extends JpaRepository<Libro, UUID> {
 }
 `
 
@@ -737,6 +817,125 @@ Mira \`Socio.java\` para comprobar de qué tipo es su id.`,
           ],
           solution: { [PRESTAMO_REPO]: repoJava('Prestamo') },
           checks: chksRepo(PRESTAMO_REPO, 'Prestamo'),
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm06-l3',
+      title: 'Lo que el bibliotecario ya sabe hacer',
+      explanation: `Cuando contratas a un bibliotecario con experiencia, no tienes que enseñarle a guardar ni a buscar fichas: **ya sabe**. Con \`JpaRepository\` pasa lo mismo: tu interface está vacía por dentro, pero al heredar de \`JpaRepository<Libro, UUID>\` ya trae un montón de métodos **hechos y gratis**.
+
+Todavía no los vas a usar (eso llega más adelante, cuando otra pieza de la aplicación hable con el bibliotecario). Por ahora, esto es **lo que podrás pedirle**:
+
+| Lo que le pides | Método | Qué te devuelve |
+|-----------------|--------|-----------------|
+| "Guarda este libro" (nuevo o con cambios) | \`save(libro)\` | el libro guardado; si era nuevo, ya con su id |
+| "Tráeme todos los libros" | \`findAll()\` | una \`List<Libro>\` |
+| "Tráeme el libro con este id" | \`findById(id)\` | un \`Optional<Libro>\` |
+| "Borra el libro con este id" | \`deleteById(id)\` | nada |
+| "¿Cuántos libros hay?" | \`count()\` | un número \`long\` |
+| "¿Existe un libro con este id?" | \`existsById(id)\` | \`true\` o \`false\` |
+
+Fíjate en dos detalles:
+
+- **El id es del tipo que pusiste en el segundo dato** (\`UUID\`). Por eso ese dato tiene que coincidir con el \`@Id\` de la entidad: \`findById\` y \`deleteById\` reciben un \`UUID\`.
+- **findById devuelve una caja: \`Optional\`.** Pides el libro con un código y el bibliotecario vuelve con una caja: puede traer el libro dentro o venir **vacía** si ese código no existe. Así nunca te devuelve "nada" a secas, y te obliga a pensar qué hacer si no está.
+
+Ojo con los nombres: es \`existsById\`, **con s** (*exists*, "existe"). \`existById\` sin la s no existe.
+
+Y lo mismo sirve para \`ISocioRepositorio\` e \`IPrestamoRepositorio\`: cada bibliotecario sabe hacer todo esto con sus propias fichas.`,
+      challenges: [
+        {
+          id: 'm06-l3-c1',
+          title: 'La chuleta del bibliotecario',
+          instructions: `Abre \`CHULETA.md\` (en la raíz: \`/CHULETA.md\`). Después de cada flecha \`->\` escribe el **nombre del método** que lo hace (mira la tabla de la pestaña **Lección**):
+
+1. Guardar un libro nuevo o sus cambios -> **save**
+2. Traer todos los libros -> **findAll**
+3. Buscar un libro por su id -> **findById**
+4. Borrar un libro por su id -> **deleteById**
+
+No cambies el texto de las preguntas.`,
+          files: conLibro({ [LIBRO_REPO]: repoJava('Libro'), [CHULETA]: CHULETA_1 }),
+          activeFile: CHULETA,
+          hints: [
+            'Todos estos métodos vienen gratis con JpaRepository: no tienes que escribirlos en ILibroRepositorio.',
+            'Guardar es save y traer todos es findAll. Para buscar y borrar por id, el nombre termina en ById.',
+            'Las respuestas, en orden: save, findAll, findById, deleteById (cada una después de su flecha).',
+          ],
+          solution: { [CHULETA]: CHULETA_1_HECHA },
+          checks: [
+            chkChuleta('Guardar un libro nuevo o sus cambios', 'save', 'Para guardar un libro (nuevo o con cambios) el método es save.'),
+            chkChuleta('Traer todos los libros', 'findAll', 'Para traer todos los libros el método es findAll.'),
+            chkChuleta('Buscar un libro por su id', 'findById', 'Para buscar un libro por su id el método es findById.'),
+            chkChuleta('Borrar un libro por su id', 'deleteById', 'Para borrar un libro por su id el método es deleteById (con ById al final).'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm06-l3-c2',
+          title: 'Contar, preguntar si existe y la caja Optional',
+          instructions: `Sigue en \`CHULETA.md\`. Hay tres líneas nuevas al final; completa después de cada flecha:
+
+1. Contar cuántos libros hay -> **count**
+2. Saber si existe un libro con ese id -> **existsById** (con **s**)
+3. findById no da el libro suelto: lo da dentro de una caja llamada -> **Optional**`,
+          files: conLibro({ [LIBRO_REPO]: repoJava('Libro'), [CHULETA]: CHULETA_2 }),
+          activeFile: CHULETA,
+          hints: [
+            'Repasa la tabla y los dos detalles del final de la pestaña Lección.',
+            'Contar es count. Para preguntar si existe, piensa en inglés: exists ("existe") + ById.',
+            'Las respuestas, en orden: count, existsById y Optional.',
+          ],
+          solution: { [CHULETA]: CHULETA_2_HECHA },
+          checks: [
+            chkChuleta('Contar cuántos libros hay', 'count', 'Para contar cuántos libros hay el método es count.'),
+            chkChuleta('Saber si existe un libro con ese id', 'existsById', 'Para saber si existe un libro con ese id el método es existsById.'),
+            {
+              type: 'file-excludes',
+              path: CHULETA,
+              pattern: 'existById',
+              label: 'existsById va con s',
+              message: 'Es existsById, con s (exists = "existe"). existById sin la s no existe en JpaRepository.',
+            },
+            chkChuleta(
+              'findById no da el libro suelto: lo da dentro de una caja llamada',
+              'Optional',
+              'findById devuelve una caja llamada Optional (con O mayúscula), que puede venir con el libro o vacía.',
+            ),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm06-l3-c3',
+          title: 'Revisa los tres bibliotecarios',
+          instructions: `Reto final del módulo. Los tres repositorios de la Biblioteca tienen **un error típico cada uno**. Arréglalos para que los tres queden así: \`@Repository\` encima, sus imports y \`extends JpaRepository<Entidad, UUID>\`.
+
+1. \`ILibroRepositorio.java\`: tiene \`extends JpaRepository\` sin los dos datos. Debe ser **JpaRepository<Libro, UUID>**.
+2. \`ISocioRepositorio.java\`: el id está como \`Long\` y le falta la placa. Debe ser **JpaRepository<Socio, UUID>** con **@Repository** encima.
+3. \`IPrestamoRepositorio.java\`: se copió de otro y guarda la entidad equivocada. Debe ser **JpaRepository<Prestamo, UUID>**.`,
+          files: conTodo({
+            [LIBRO_REPO]: LIBRO_REPO_SIN_DATOS,
+            [SOCIO_REPO]: SOCIO_REPO_CON_LONG,
+            [PRESTAMO_REPO]: PRESTAMO_REPO_COPIADO,
+          }),
+          activeFile: LIBRO_REPO,
+          hints: [
+            'Revisa los tres archivos de la carpeta repositories, uno por uno. Los mensajes de Comprobar te dicen cuál falla.',
+            'Cada repositorio: primer dato = su propia entidad; segundo dato = el tipo de @Id, que en las tres entidades es UUID.',
+            'Quedan: JpaRepository<Libro, UUID>, JpaRepository<Socio, UUID> (y @Repository encima de ISocioRepositorio) y JpaRepository<Prestamo, UUID>.',
+          ],
+          solution: {
+            [LIBRO_REPO]: repoJava('Libro'),
+            [SOCIO_REPO]: repoJava('Socio'),
+            [PRESTAMO_REPO]: repoJava('Prestamo'),
+          },
+          checks: [
+            ...enArchivo(chksRepo(LIBRO_REPO, 'Libro')),
+            ...enArchivo(chksRepo(SOCIO_REPO, 'Socio')),
+            ...enArchivo(chksRepo(PRESTAMO_REPO, 'Prestamo')),
+          ],
           xp: 10,
         },
       ],
