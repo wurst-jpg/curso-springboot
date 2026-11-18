@@ -463,6 +463,23 @@ const chkAnotado = (path, entidad) => ({
   message: `Falta @Repository en la línea de arriba de public interface I${entidad}Repositorio.`,
 })
 
+const chkEnIngles = (path) => ({
+  type: 'file-excludes',
+  path,
+  pattern: '@Repositorio\\b',
+  label: 'La anotación está en inglés: @Repository',
+  message: 'La anotación se escribe en inglés: @Repository (aunque la interface se llame ...Repositorio).',
+})
+
+const PLURAL = { Libro: 'libros', Socio: 'socios', Prestamo: 'préstamos' }
+const chkEntidadCorrecta = (path, entidad) => ({
+  type: 'file-excludes',
+  path,
+  pattern: `JpaRepository\\s*<\\s*(?!${entidad}\\b)\\w+\\s*,`,
+  label: `El primer dato es ${entidad}`,
+  message: `I${entidad}Repositorio guarda ${PLURAL[entidad]}: el primer dato entre < > es ${entidad}. ¿Copiaste otro repositorio y olvidaste cambiarlo?`,
+})
+
 // Todo lo que debe cumplir un repositorio terminado.
 const chksRepo = (path, entidad) => [
   chkPaquete(path),
@@ -471,11 +488,23 @@ const chksRepo = (path, entidad) => [
   chkImportUUID(path),
   chkImportRepository(path),
   chkAnotado(path, entidad),
+  chkEnIngles(path),
   chkExtends(path, entidad),
   chkSinDatos(path),
   chkTipoId(path, entidad),
   chkOrden(path),
+  chkEntidadCorrecta(path, entidad),
 ]
+
+const PRESTAMO_REPO_A_MEDIAS = `package com.biblioteca.repositories;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface IPrestamoRepositorio extends JpaRepository {
+}
+`
 
 // Archivos de inicio: el pom.xml y las entidades que hacen falta en cada reto.
 const conLibro = (extra = {}) => ({ '/pom.xml': POM, [LIBRO]: LIBRO_JAVA, [CATEGORIA]: CATEGORIA_JAVA, ...extra })
@@ -607,6 +636,107 @@ Mira \`Libro.java\`: el campo con \`@Id\` es \`UUID\`. Por eso el segundo dato e
             chkTipoId(LIBRO_REPO, 'Libro'),
             chkOrden(LIBRO_REPO),
           ],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm06-l2',
+      title: '@Repository y un bibliotecario para cada ficha',
+      explanation: `En la biblioteca, el bibliotecario lleva una **placa** que dice "Bibliotecario": así todos saben quién guarda y trae las fichas. En Spring esa placa es la anotación **@Repository**, que va justo encima de la interface:
+
+\`\`\`java
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface ILibroRepositorio extends JpaRepository<Libro, UUID> {
+}
+\`\`\`
+
+¿Por qué ponerla?
+
+- **Deja claro su trabajo**: cualquiera que abra el archivo sabe que esta pieza habla con la base de datos.
+- **Spring la busca al arrancar**: encuentra las piezas con placa y las deja listas para usarse en el resto de la aplicación.
+- **Traduce los errores** de la base de datos a errores de Spring, más fáciles de entender.
+
+(Con \`JpaRepository\` Spring encontraría el repositorio igual, pero en clase siempre ponemos \`@Repository\`: es la placa que hace el código más claro.) Fíjate: la anotación está **en inglés**, \`@Repository\`, aunque nuestra interface se llame \`...Repositorio\`.
+
+### Un bibliotecario por cada tipo de ficha
+
+Cada entidad tiene **su propio** repositorio: uno para \`Libro\`, otro para \`Socio\` y otro para \`Prestamo\`. Son casi iguales; solo cambia el **nombre** y el **primer dato** entre \`< >\`:
+
+| Entidad | Repositorio | Hereda de |
+|---------|-------------|-----------|
+| \`Libro\` | \`ILibroRepositorio\` | \`JpaRepository<Libro, UUID>\` |
+| \`Socio\` | \`ISocioRepositorio\` | \`JpaRepository<Socio, UUID>\` |
+| \`Prestamo\` | \`IPrestamoRepositorio\` | \`JpaRepository<Prestamo, UUID>\` |
+
+Un error muy común al copiar y pegar es dejar \`JpaRepository<Libro, UUID>\` dentro de \`ISocioRepositorio\`: tendrías dos bibliotecarios de libros y ninguno de socios. Otro error de clase es dejar el repositorio **a medio hacer**, con \`extends JpaRepository\` sin los dos datos.`,
+      challenges: [
+        {
+          id: 'm06-l2-c1',
+          title: 'Ponle la placa @Repository',
+          instructions: `En \`ILibroRepositorio.java\`:
+
+1. Añade el import \`import org.springframework.stereotype.Repository;\` junto a los otros.
+2. Escribe **@Repository** en la línea justo encima de \`public interface ILibroRepositorio\`.`,
+          files: conLibro({ [LIBRO_REPO]: repoJava('Libro', { anotado: false }) }),
+          activeFile: LIBRO_REPO,
+          hints: [
+            'Una anotación va encima de lo que marca, igual que @Entity va encima de la clase Libro.',
+            'Necesitas dos cosas: el import de org.springframework.stereotype.Repository y la anotación.',
+            'Deja las dos líneas así: @Repository y debajo public interface ILibroRepositorio extends JpaRepository<Libro, UUID> {',
+          ],
+          solution: { [LIBRO_REPO]: repoJava('Libro') },
+          checks: chksRepo(LIBRO_REPO, 'Libro'),
+          xp: 10,
+        },
+        {
+          id: 'm06-l2-c2',
+          title: 'Crea ISocioRepositorio',
+          instructions: `Crea el archivo \`/src/main/java/com/biblioteca/repositories/ISocioRepositorio.java\`: el bibliotecario de los socios. Debe tener:
+
+1. \`package com.biblioteca.repositories;\`
+2. Los imports de \`com.biblioteca.models.Socio\`, \`java.util.UUID\`, \`org.springframework.data.jpa.repository.JpaRepository\` y \`org.springframework.stereotype.Repository\`.
+3. **@Repository** encima de \`public interface ISocioRepositorio extends JpaRepository<Socio, UUID> { }\`
+
+Mira \`Socio.java\` para comprobar de qué tipo es su id.`,
+          files: conSocio({ [LIBRO_REPO]: repoJava('Libro') }),
+          activeFile: LIBRO_REPO,
+          hints: [
+            'Es igual que ILibroRepositorio.java (está abierto): puedes copiarlo como modelo.',
+            'Cambia Libro por Socio en tres sitios: el import, el nombre de la interface y el primer dato entre < >.',
+            'La línea clave: @Repository y debajo public interface ISocioRepositorio extends JpaRepository<Socio, UUID> {',
+          ],
+          solution: { [SOCIO_REPO]: repoJava('Socio') },
+          checks: [
+            {
+              type: 'file-exists',
+              pattern: '^/src/main/java/com/biblioteca/repositories/ISocioRepositorio\\.java$',
+              label: 'Existe repositories/ISocioRepositorio.java',
+              message: 'No encuentro /src/main/java/com/biblioteca/repositories/ISocioRepositorio.java. Revisa la ruta y las mayúsculas.',
+            },
+            ...chksRepo(SOCIO_REPO, 'Socio'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm06-l2-c3',
+          title: 'Termina IPrestamoRepositorio, que quedó a medio hacer',
+          instructions: `Alguien empezó \`IPrestamoRepositorio.java\` y lo dejó a medias: escribió \`extends JpaRepository\` **sin los dos datos** y le faltan imports. Termínalo:
+
+1. Añade \`import com.biblioteca.models.Prestamo;\` y \`import java.util.UUID;\`
+2. Cambia \`extends JpaRepository\` por **extends JpaRepository<Prestamo, UUID>**.
+3. Deja \`@Repository\` donde está.`,
+          files: conTodo({ [PRESTAMO_REPO]: PRESTAMO_REPO_A_MEDIAS }),
+          activeFile: PRESTAMO_REPO,
+          hints: [
+            'JpaRepository sin < > no sabe qué fichas guarda: le faltan la entidad y el tipo de su id.',
+            'La entidad es Prestamo y su id (mira @Id en Prestamo.java) es UUID. Cada uno necesita su import.',
+            'La línea queda: public interface IPrestamoRepositorio extends JpaRepository<Prestamo, UUID> {',
+          ],
+          solution: { [PRESTAMO_REPO]: repoJava('Prestamo') },
+          checks: chksRepo(PRESTAMO_REPO, 'Prestamo'),
           xp: 10,
         },
       ],

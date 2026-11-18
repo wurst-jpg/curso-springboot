@@ -161,4 +161,70 @@ describe('módulo m06 Repositorios (Spring Boot)', () => {
       ])
     })
   })
+  describe('lección 2: @Repository y más repositorios', () => {
+    it('@Repository: tolera espacios, saltos de línea y el import con asterisco', () => {
+      const c = reto('m06-l2-c1')
+      const texto = resuelto(c)[LIBRO_REPO]
+        .replace('@Repository\npublic interface', '  @Repository\n\n  public   interface')
+        .replace('import org.springframework.stereotype.Repository;', 'import org.springframework.stereotype.*;')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('@Repository: detecta que falta, que está en otro sitio o comentada', () => {
+      const c = reto('m06-l2-c1')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '@Repository\n', ''))).toEqual([expect.stringMatching(/Falta @Repository/)])
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '@Repository\n', '// @Repository\n'))).toEqual([expect.stringMatching(/Falta @Repository/)])
+      const arriba = variar(c, LIBRO_REPO, '@Repository\n', '')
+      arriba[LIBRO_REPO] = '@Repository\n' + arriba[LIBRO_REPO]
+      expect(mensajesQueFallan(c, arriba)).toEqual([expect.stringMatching(/Falta @Repository/)])
+    })
+
+    it('@Repository: detecta @Repositorio en español y que falte el import', () => {
+      const c = reto('m06-l2-c1')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '@Repository\n', '@Repositorio\n'))).toEqual([
+        expect.stringMatching(/Falta @Repository/),
+        expect.stringMatching(/en inglés/),
+      ])
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'import org.springframework.stereotype.Repository;\n', ''))).toEqual([
+        expect.stringMatching(/import org\.springframework\.stereotype\.Repository/),
+      ])
+    })
+
+    it('ISocioRepositorio: el archivo no viene de inicio y tolera espacios', () => {
+      const c = reto('m06-l2-c2')
+      expect(c.files[SOCIO_REPO]).toBeUndefined()
+      const texto = resuelto(c)[SOCIO_REPO].replace('JpaRepository<Socio, UUID>', 'JpaRepository<\n    Socio,\n    UUID\n>')
+      expect(fallan(c, resuelto(c, { [SOCIO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('ISocioRepositorio: detecta copiar y pegar el de Libro sin cambiar la entidad', () => {
+      const c = reto('m06-l2-c2')
+      const msgs = mensajesQueFallan(c, variar(c, SOCIO_REPO, 'JpaRepository<Socio, UUID>', 'JpaRepository<Libro, UUID>'))
+      expect(msgs).toContainEqual(expect.stringMatching(/guarda socios/))
+    })
+
+    it('ISocioRepositorio: detecta el JpaRepository sin datos y el id Long', () => {
+      const c = reto('m06-l2-c2')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'JpaRepository<Socio, UUID>', 'JpaRepository'))).toContainEqual(
+        expect.stringMatching(/sin los dos datos/),
+      )
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'JpaRepository<Socio, UUID>', 'JpaRepository<Socio, Long>'))).toContainEqual(
+        expect.stringMatching(/id de Socio es UUID/),
+      )
+    })
+
+    it('IPrestamoRepositorio a medio hacer: el inicio tiene el error de clase (JpaRepository sin datos)', () => {
+      const c = reto('m06-l2-c3')
+      expect(c.files[PRESTAMO_REPO]).toMatch(/extends JpaRepository \{/)
+      expect(mensajesQueFallan(c, c.files)).toContainEqual(expect.stringMatching(/sin los dos datos/))
+      expect(mensajesQueFallan(c, c.files)).toContainEqual(expect.stringMatching(/import com\.biblioteca\.models\.Prestamo/))
+    })
+
+    it('IPrestamoRepositorio: detecta Integer como id', () => {
+      const c = reto('m06-l2-c3')
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'JpaRepository<Prestamo, UUID>', 'JpaRepository<Prestamo, Integer>'))).toContainEqual(
+        expect.stringMatching(/id de Prestamo es UUID/),
+      )
+    })
+  })
 })
