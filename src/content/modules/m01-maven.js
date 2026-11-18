@@ -121,9 +121,9 @@ const sigueElPadre = {
 const siguenLasDemas = {
   type: 'file-includes',
   path: POM_PATH,
-  pattern: '^(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-webmvc\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-data-jpa\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*h2\\s*</artifactId>)',
+  pattern: '^(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-webmvc\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-data-jpa\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*h2\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*spring-boot-h2console\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-data-jpa-test\\s*</artifactId>)(?=[\\s\\S]*<artifactId>\\s*spring-boot-starter-webmvc-test\\s*</artifactId>)',
   label: 'Siguen las demás dependencias',
-  message: 'Parece que borraste de más: las demás dependencias (webmvc, data-jpa, h2...) deben seguir en el pom.xml. Usa "Reiniciar reto" si lo necesitas.',
+  message: 'Parece que borraste de más: las demás dependencias (webmvc, data-jpa, h2, h2console y las de pruebas) deben seguir en el pom.xml. Usa "Reiniciar reto" si lo necesitas.',
 }
 // Un comentario con la respuesta no vale: el patrón busca el nombre dentro de <!-- ... -->.
 const sinComentar = (palabra) => ({
@@ -133,8 +133,14 @@ const sinComentar = (palabra) => ({
   label: 'La dependencia no está comentada',
   message: `Veo ${palabra} dentro de un comentario <!-- -->. Los comentarios no cuentan: escribe la dependencia de verdad.`,
 })
-const dentroDeDependencies = (artifact, scope) =>
-  `<dependency>\\s*<groupId>\\s*org\\.springframework\\.boot\\s*</groupId>\\s*<artifactId>\\s*${artifact}\\s*</artifactId>${scope ? `\\s*<scope>\\s*${scope}\\s*</scope>` : ''}\\s*</dependency>[\\s\\S]*</dependencies>`
+const dentroDeDependencies = (artifact, scope) => {
+  const g = '<groupId>\\s*org\\.springframework\\.boot\\s*</groupId>'
+  const a = `<artifactId>\\s*${artifact}\\s*</artifactId>`
+  const ids = `(?:${g}\\s*${a}|${a}\\s*${g})`
+  const version = '(?:\\s*<version>[^<]*</version>)?'
+  const sc = scope ? `\\s*<scope>\\s*${scope}\\s*</scope>` : ''
+  return `<dependencies>(?:(?!</dependencies>)[\\s\\S])*<dependency>\\s*${ids}${version}${sc}\\s*</dependency>`
+}
 
 const modulo = {
   id: 'm01',
@@ -257,7 +263,7 @@ El texto debe ser exactamente **Sistema de la biblioteca**. No cambies el \`<nam
 
 Los verás todos más adelante; ahora solo hay que saber que son packs y cómo se añaden.
 
-**Añadir y quitar.** Añadir un ingrediente es copiar un bloque \`<dependency>\` **dentro** de \`<dependencies>\` (antes de \`</dependencies>\`). Quitarlo es borrar el bloque completo, de \`<dependency>\` a \`</dependency>\`. Comentarlo con \`<!-- -->\` no lo quita de verdad pero lo apaga; para este curso, bórralo.
+**Añadir y quitar.** Añadir un ingrediente es copiar un bloque \`<dependency>\` **dentro** de \`<dependencies>\` (antes de \`</dependencies>\`). Quitarlo es borrar el bloque completo, de \`<dependency>\` a \`</dependency>\`. Comentarlo con \`<!-- -->\` también lo desactiva, pero en este curso bórralo.
 
 **El scope: ¿cuándo se necesita?** Algunos ingredientes no se necesitan siempre. Es como el abrelatas: sirve al cocinar, pero no va en el plato servido. El \`<scope>\` lo indica:
 
@@ -361,12 +367,14 @@ En \`/pom.xml\`, **borra el bloque completo** de esa dependencia: desde \`<depen
 - \`artifactId\`: \`spring-boot-starter-test\`
 - \`scope\`: **test**, porque solo se usa al hacer pruebas (como el abrelatas, no va en el plato servido).
 
+En el proyecto real este pack ya viene dentro de los packs \`-test\` que ves en el pom.xml; aquí lo añadimos aparte solo para practicar el scope.
+
 Escribe el scope como \`<scope>test</scope>\`, debajo del \`artifactId\`.`,
           files: base(),
           activeFile: POM_PATH,
           hints: [
-            'Copia un bloque que ya tenga scope, por ejemplo el de h2 (scope runtime), y cámbialo.',
-            'Cambia el artifactId a spring-boot-starter-test y el groupId a org.springframework.boot (h2 usa com.h2database, no lo copies).',
+            'Copia el bloque de spring-boot-starter-data-jpa-test (ya tiene scope test) justo debajo de él, dentro de <dependencies>.',
+            'Cambia solo el artifactId a spring-boot-starter-test; el groupId (org.springframework.boot) y el scope test ya están bien.',
             'Debe quedar: <dependency> <groupId>org.springframework.boot</groupId> <artifactId>spring-boot-starter-test</artifactId> <scope>test</scope> </dependency>',
           ],
           solution: { [POM_PATH]: conDependencia(POM, dependencia('spring-boot-starter-test', 'test')) },
@@ -410,7 +418,7 @@ Escribe el scope como \`<scope>test</scope>\`, debajo del \`artifactId\`.`,
 
 Maven sabe dónde buscar porque esos nombres son siempre los mismos.
 
-**Paquete = carpetas.** Dentro de \`src/main/java\`, el \`package\` de una clase es la dirección de su carpeta con puntos. Un archivo en \`src/main/java/com/biblioteca/avisos/\` empieza con \`package com.biblioteca.avisos;\`. Si la carpeta y el \`package\` no coinciden, Java protesta.
+**Paquete = carpetas.** Dentro de \`src/main/java\` (y también de \`src/test/java\`), el \`package\` de una clase es la dirección de su carpeta con puntos. Un archivo en \`src/main/java/com/biblioteca/avisos/\` empieza con \`package com.biblioteca.avisos;\`. Si la carpeta y el \`package\` no coinciden, Java protesta.
 
 **La clase principal.** Toda casa tiene una puerta de entrada. La de Spring Boot es una clase con un método \`main\`:
 
@@ -427,7 +435,7 @@ public class BibliotecaApplication {
 - \`SpringApplication.run(...)\` es el **botón de encendido**: arranca la aplicación. Le pasas la clase principal para que sepa por dónde empezar.
 - \`@SpringBootApplication\` es el **letrero en la puerta**: dice "aquí empieza una aplicación Spring Boot". Además, Spring mira esta clase y **todo lo que hay en su paquete y debajo**; por eso la clase principal vive en \`com.biblioteca\`, en lo más alto, y lo demás cuelga de ahí.
 
-**El wrapper \`mvnw\`.** ¿Y si tu computador no tiene Maven? Para eso existe \`mvnw\` (de "Maven wrapper", un envoltorio): un pequeño script que viaja dentro del proyecto. Es como llevar la olla en la mochila: si no está instalada la versión correcta de Maven, el script la descarga solo. En Windows se usa \`mvnw.cmd\`.
+**El wrapper \`mvnw\`.** ¿Y si tu computador no tiene Maven? Para eso existe \`mvnw\` (de "Maven wrapper", un envoltorio): un pequeño script (un archivo con órdenes para el computador) que viaja dentro del proyecto. Es como llevar la olla en la mochila: si no está instalada la versión correcta de Maven, el script la descarga solo. En Windows se usa \`mvnw.cmd\`.
 
 El comando típico es:
 
@@ -435,7 +443,7 @@ El comando típico es:
 ./mvnw spring-boot:run
 \`\`\`
 
-Léelo por partes: \`./mvnw\` es "usa Maven"; \`spring-boot:run\` es la orden: "prepara el proyecto (descarga los ingredientes del pom.xml, compila) y **enciende** la aplicación". Esa orden la aporta el \`spring-boot-maven-plugin\` que aparece al final del \`pom.xml\`. Aquí no se ejecuta nada, pero en tu computador lo harás en una terminal, dentro de la carpeta del proyecto.`,
+Léelo por partes: \`./mvnw\` es "usa Maven"; \`spring-boot:run\` es la orden: "prepara el proyecto (descarga los ingredientes del pom.xml, compila) y **enciende** la aplicación". Esa orden la aporta el \`spring-boot-maven-plugin\` que aparece al final del \`pom.xml\`. Aquí no se ejecuta nada, pero en tu computador lo harás en una terminal (la ventana donde se escriben órdenes), dentro de la carpeta del proyecto.`,
       challenges: [
         {
           id: 'm01-l3-c1',
@@ -527,7 +535,7 @@ Los \`import\` ya están escritos.`,
             {
               type: 'file-includes',
               path: PRUEBA,
-              pattern: 'package\\s+com\\.biblioteca\\s*;?[ \\t]*(\\r?\\n|$)',
+              pattern: 'package\\s+com\\.biblioteca\\s*(;|\\r?\\n|$)',
               label: 'El paquete del test es com.biblioteca',
               message: 'La primera línea de BibliotecaApplicationTests.java debe ser package com.biblioteca; (igual que su carpeta).',
             },
@@ -546,36 +554,37 @@ Los \`import\` ya están escritos.`,
           title: 'Integra todo: pom, carpetas y mvnw',
           instructions: `Un último reto que junta lo aprendido:
 
-1. En \`/pom.xml\`, cambia \`<java.version>17</java.version>\` por **21**.
+1. En \`/pom.xml\`, cambia la versión del proyecto (la de debajo de \`<artifactId>biblioteca</artifactId>\`) de \`0.0.1-SNAPSHOT\` a **1.1.0**. La de \`<parent>\` no se toca.
 2. En \`/pom.xml\`, añade (dentro de \`<dependencies>\`, sin scope) la dependencia con groupId \`org.springframework.boot\` y artifactId **spring-boot-starter-mail** (pack para enviar correos).
 3. Crea \`/src/main/java/com/biblioteca/avisos/Aviso.java\` con \`package com.biblioteca.avisos;\` y una clase vacía \`public class Aviso { }\`.
 4. Marca la casilla cuando sepas qué hace \`./mvnw spring-boot:run\` (está explicado en la pestaña **Lección**).`,
           files: base(),
           activeFile: POM_PATH,
           hints: [
-            'Son tres cambios de archivo y una casilla. Empieza por el pom.xml: el número de Java está en <properties>.',
+            'Son tres cambios de archivo y una casilla. Empieza por el pom.xml: la versión está debajo de <artifactId>biblioteca</artifactId>.',
             'La dependencia nueva va antes de </dependencies>. Para Aviso.java, la carpeta avisos aparece en la ruta y en el package.',
             'Aviso.java: package com.biblioteca.avisos; y debajo public class Aviso { }. La casilla: mvnw descarga lo necesario y spring-boot:run prepara y enciende la aplicación.',
           ],
           solution: {
-            [POM_PATH]: conDependencia(POM, dependencia('spring-boot-starter-mail')).replace('<java.version>17</java.version>', '<java.version>21</java.version>'),
+            [POM_PATH]: conDependencia(POM, dependencia('spring-boot-starter-mail')).replace('<version>0.0.1-SNAPSHOT</version>', '<version>1.1.0</version>'),
             [AVISO]: 'package com.biblioteca.avisos;\n\npublic class Aviso {\n}\n',
           },
           checks: [
             {
               type: 'file-includes',
               path: POM_PATH,
-              pattern: '<java\\.version>\\s*21\\s*</java\\.version>',
-              label: 'java.version vale 21',
-              message: 'En <properties>, <java.version> debe valer 21.',
+              pattern: '<artifactId>\\s*biblioteca\\s*</artifactId>\\s*<version>\\s*1\\.1\\.0\\s*</version>',
+              label: 'La versión del proyecto es 1.1.0',
+              message: 'Debajo de <artifactId>biblioteca</artifactId> la versión debe ser <version>1.1.0</version>.',
             },
             {
               type: 'file-excludes',
               path: POM_PATH,
-              pattern: '<java\\.version>\\s*17\\s*</java\\.version>',
-              label: 'Ya no queda java.version 17',
-              message: 'Todavía aparece <java.version>17</java.version>.',
+              pattern: '0\\.0\\.1-SNAPSHOT',
+              label: 'Ya no queda 0.0.1-SNAPSHOT',
+              message: 'Todavía aparece 0.0.1-SNAPSHOT en el pom.xml.',
             },
+            sigueElPadre,
             {
               type: 'file-includes',
               path: POM_PATH,

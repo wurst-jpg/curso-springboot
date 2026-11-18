@@ -90,7 +90,7 @@ describe('módulo m01 Maven y el proyecto (Spring Boot)', () => {
       'm01-l2-c1': conDependencia(BASE, bloque('spring-boot-starter-actuator')),
       'm01-l2-c2': BASE.replace(DEVTOOLS, ''),
       'm01-l2-c3': conDependencia(BASE, bloque('spring-boot-starter-test', 'test')),
-      'm01-l3-c3': conDependencia(BASE, bloque('spring-boot-starter-mail')).replace('<java.version>17</java.version>', '<java.version>21</java.version>'),
+      'm01-l3-c3': conDependencia(BASE, bloque('spring-boot-starter-mail')).replace('<version>0.0.1-SNAPSHOT</version>', '<version>1.1.0</version>'),
     }
     Object.entries(esperado).forEach(([id, pom]) => expect(reto(id).solution[POM], id).toBe(pom))
     ;['m01-l3-c1', 'm01-l3-c2'].forEach((id) => expect(reto(id).solution[POM], id).toBeUndefined())
@@ -181,16 +181,36 @@ describe('módulo m01 Maven y el proyecto (Spring Boot)', () => {
       expect(fallan(c, enMain)).toContain('Existe BibliotecaApplicationTests.java en src/test/java')
       const variante = { ...c.solution, [T]: 'package   com.biblioteca\npublic  class  BibliotecaApplicationTests{}' }
       expect(fallan(c, variante)).toEqual([])
+      const unaLinea = { ...c.solution, [T]: 'package com.biblioteca; public class BibliotecaApplicationTests {}' }
+      expect(fallan(c, unaLinea)).toEqual([])
     })
-    it('c3: el paquete debe terminar en .avisos y se acepta Java 21 con espacios', () => {
+    it('c3: el paquete debe terminar en .avisos y se acepta la versión con espacios', () => {
       const c = reto('m01-l3-c3')
       const A = '/src/main/java/com/biblioteca/avisos/Aviso.java'
       const mal = { ...c.solution, [A]: 'package com.biblioteca;\npublic class Aviso {}' }
       expect(fallan(c, mal)).toEqual(['El paquete es com.biblioteca.avisos', 'El paquete coincide con la carpeta avisos'])
-      const sin17 = { ...c.solution, [POM]: c.solution[POM].replace('<java.version>21</java.version>', '<java.version> 21 </java.version>') }
-      expect(fallan(c, sin17)).toEqual([])
-      const aun17 = { ...c.solution, [POM]: BASE }
-      expect(fallan(c, aun17)).toEqual(expect.arrayContaining(['java.version vale 21', 'Ya no queda java.version 17']))
+      const espacios = { ...c.solution, [POM]: c.solution[POM].replace('<version>1.1.0</version>', '<version> 1.1.0 </version>') }
+      expect(fallan(c, espacios)).toEqual([])
+      expect(fallan(c, { ...c.solution, [POM]: BASE })).toEqual(
+        expect.arrayContaining(['La versión del proyecto es 1.1.0', 'Ya no queda 0.0.1-SNAPSHOT']),
+      )
+    })
+    it('dependencia antes de <dependencies> o dentro de <parent> no vale; artifactId primero y <version> sí', () => {
+      const c = reto('m01-l2-c1')
+      const b = bloque('spring-boot-starter-actuator')
+      const antes = BASE.replace('  <dependencies>', () => b + '  <dependencies>')
+      expect(fallan(c, { [POM]: antes })).toContain('Existe la dependencia spring-boot-starter-actuator')
+      const enParent = BASE.replace('    <relativePath/>', () => b + '    <relativePath/>')
+      expect(fallan(c, { [POM]: enParent })).toContain('Existe la dependencia spring-boot-starter-actuator')
+      const alReves = conDependencia(BASE, '<dependency><artifactId>spring-boot-starter-actuator</artifactId><groupId>org.springframework.boot</groupId><version>4.1.2</version></dependency>\n')
+      expect(fallan(c, { [POM]: alReves })).toEqual([])
+    })
+    it('l2-c2: borrar h2console o un pack -test se detecta', () => {
+      const c = reto('m01-l2-c2')
+      ;['spring-boot-h2console', 'spring-boot-starter-webmvc-test'].forEach((a) => {
+        const sinEse = c.solution[POM].replace(new RegExp(`    <dependency>\\n      <groupId>org.springframework.boot</groupId>\\n      <artifactId>${a}</artifactId>\\n(      <scope>test</scope>\\n)?    </dependency>\\n`), '')
+        expect(fallan(c, { [POM]: sinEse }), a).toEqual(['Siguen las demás dependencias'])
+      })
     })
     it('c3: incluye una casilla manual sobre mvnw', () => {
       expect(reto('m01-l3-c3').checks.some((k) => k.type === 'manual')).toBe(true)
