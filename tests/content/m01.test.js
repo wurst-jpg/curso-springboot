@@ -22,7 +22,6 @@ function pasa(check, files) {
 }
 // Etiquetas de los checks que fallan con estos archivos (los de inicio + los cambios del alumno)
 const fallan = (c, cambios) => c.checks.filter((k) => !pasa(k, { ...c.files, ...cambios })).map((k) => k.label)
-const conSolucion = (c) => ({ ...c.files, ...c.solution })
 
 const bloque = (artifact, scope) =>
   `    <dependency>\n      <groupId>org.springframework.boot</groupId>\n      <artifactId>${artifact}</artifactId>\n${scope ? `      <scope>${scope}</scope>\n` : ''}    </dependency>\n`
