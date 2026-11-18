@@ -210,4 +210,74 @@ describe('módulo m07 Consultas por nombre (Spring Boot)', () => {
       ;['findByIsbn', 'findByCategoria(', 'findByCategoriaAndAutor'].forEach((m) => expect(c.files[LIBRO_REPO], m).toContain(m))
     })
   })
+  describe('lección 3: existsBy, countBy y @Query', () => {
+    it('existsByCorreo: detecta existByCorreo sin la s (error de clase)', () => {
+      const c = reto('m07-l3-c1')
+      const msgs = mensajesQueFallan(c, variar(c, SOCIO_REPO, 'existsByCorreo', 'existByCorreo'))
+      expect(msgs).toContainEqual(expect.stringMatching(/con s/))
+    })
+
+    it('existsByCorreo: Boolean también vale (aunque se prefiere boolean)', () => {
+      const c = reto('m07-l3-c1')
+      expect(fallan(c, variar(c, SOCIO_REPO, 'boolean existsByCorreo', 'Boolean existsByCorreo')).map((k) => k.label)).toEqual([])
+      expect(fallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'Long countByTipo')).map((k) => k.label)).toEqual([])
+    })
+
+    it('countByTipo: detecta int en vez de long y String en vez del enum', () => {
+      const c = reto('m07-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'int countByTipo'))).toContainEqual(expect.stringMatching(/long/))
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'countByTipo(TipoSocio tipo)', 'countByTipo(String tipo)'))).toContainEqual(
+        expect.stringMatching(/enum TipoSocio, no String/),
+      )
+    })
+
+    it('@Query: tolera minúsculas en SELECT/FROM/WHERE, otro alias y espacios', () => {
+      const c = reto('m07-l3-c2')
+      const texto = resuelto(c)[LIBRO_REPO].replace(
+        '@Query("SELECT l FROM Libro l WHERE l.autor = :autor")\n  List<Libro>',
+        '@Query( "select lib from Libro lib where lib.autor=:autor" )\n\n  public List<Libro>',
+      )
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('@Query: detecta el nombre de la tabla en vez de la entidad y @Param distinto de :autor', () => {
+      const c = reto('m07-l3-c2')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'FROM Libro l', 'FROM libros l'))).toContainEqual(expect.stringMatching(/no el de la tabla/))
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '@Param("autor")', '@Param("nombre")'))).toContainEqual(expect.stringMatching(/igual/))
+    })
+
+    it('@Query: comentada no cuenta', () => {
+      const c = reto('m07-l3-c2')
+      const comentado = variar(c, LIBRO_REPO, '  @Query(', '  // @Query(')
+      expect(fallan(c, comentado).length).toBeGreaterThan(0)
+    })
+
+    it('reto final: IPrestamoRepositorio junta OrderBy, countBy y existsBy con una entidad como parámetro', () => {
+      const c = reto('m07-l3-c3')
+      const sol = c.solution[PRESTAMO_REPO]
+      expect(sol).toMatch(/OrderBy/)
+      expect(sol).toMatch(/countBy/)
+      expect(sol).toMatch(/existsBy\w*And/)
+    })
+
+    it('reto final: detecta existBy sin s, el id en vez de Libro, OrderByFecha y int', () => {
+      const c = reto('m07-l3-c3')
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'existsByLibro', 'existByLibro'))).toContainEqual(expect.stringMatching(/con s/))
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, '(Libro libro, boolean devuelto)', '(UUID libro, boolean devuelto)'))).toContainEqual(
+        expect.stringMatching(/es un Libro/),
+      )
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'OrderByFechaPrestamoAsc', 'OrderByFechaAsc'))).toContainEqual(
+        expect.stringMatching(/fechaPrestamo/),
+      )
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'long countByDevuelto', 'int countByDevuelto'))).toContainEqual(expect.stringMatching(/long/))
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'countByDevuelto(boolean', 'countByDevuelto(String'))).toContainEqual(
+        expect.stringMatching(/devuelto es boolean/),
+      )
+    })
+  })
+
+  it('tiene 3 lecciones y 9 retos', () => {
+    expect(modulo.lessons.map((l) => l.id)).toEqual(['m07-l1', 'm07-l2', 'm07-l3'])
+    expect(retos).toHaveLength(9)
+  })
 })

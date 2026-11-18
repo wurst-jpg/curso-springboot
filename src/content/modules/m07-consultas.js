@@ -452,6 +452,29 @@ const chkTipoNoString = (path) =>
   chkError(path, '(?:findBy|countBy)Tipo\\w*\\s*\\(\\s*String\\b', 'tipo se busca con el enum, no con String',
     'tipo es del tipo enum TipoSocio, no String: el parámetro debe ser TipoSocio tipo.')
 
+const EXISTS_M = 'boolean existsByCorreo(String correo);'
+const COUNT_M = 'long countByTipo(TipoSocio tipo);'
+const QUERY_M = '@Query("SELECT l FROM Libro l WHERE l.autor = :autor")\n  List<Libro> buscarPorAutor(@Param("autor") String autor);'
+const LIBRO_IMPORTS_3 = [
+  ...LIBRO_IMPORTS_2,
+  'org.springframework.data.jpa.repository.Query',
+  'org.springframework.data.repository.query.Param',
+]
+const PRESTAMO_METODOS = [
+  'List<Prestamo> findByDevueltoOrderByFechaPrestamoAsc(boolean devuelto);',
+  'long countByDevuelto(boolean devuelto);',
+  'boolean existsByLibroAndDevuelto(Libro libro, boolean devuelto);',
+]
+
+const SI_NO = '(?:boolean|Boolean)'
+const NUMERO = '(?:long|Long)'
+const chkSinS = (path) =>
+  chkError(path, '\\bexistBy', 'existsBy va con s',
+    'Es existsBy, con s (exists = "existe"): existsByCorreo, existsByLibroAndDevuelto. Sin la s Spring no lo entiende.')
+const chkNoInt = (path) =>
+  chkError(path, '\\b(?:int|Integer)\\s+countBy', 'countBy devuelve long',
+    'Un countBy devuelve un número long (como count() en m06), no int.')
+
 const modulo = {
   id: 'm07',
   title: 'Consultas por nombre',
@@ -694,6 +717,169 @@ Así, con "mar" encontrará "El viejo y el mar" y también "MAREA ROJA". El camp
             chkCategoria(LIBRO_REPO, 'No borres List<Libro> findByCategoria(CategoriaLibro categoria); de los retos anteriores.'),
             chkAutor(LIBRO_REPO, 'No borres List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor); del reto anterior.'),
             chkSigue(LIBRO_REPO, 'Libro'),
+          ],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm07-l3',
+      title: 'Preguntas de sí o no, contar y el extra @Query',
+      explanation: `A veces no quieres que el bibliotecario te **traiga** nada: solo quieres una **respuesta**. "¿Ya hay un socio con este correo?" (sí o no) o "¿cuántos estudiantes hay?" (un número).
+
+### existsBy: preguntas de sí o no
+
+\`\`\`java
+boolean existsByCorreo(String correo);
+\`\`\`
+
+**exists** ("existe") + **By** + el campo. Devuelve \`boolean\`: \`true\` si hay alguno, \`false\` si no. Muy útil para no repetir un correo que es único. Fíjate: es **existsBy, con s**. Escribir \`existByCorreo\` (sin la s) es un error muy común en clase, y Spring no lo entiende. También funciona \`Boolean\` (con mayúscula), pero preferimos \`boolean\`: la respuesta siempre es sí o no, nunca "nada".
+
+### countBy: contar
+
+\`\`\`java
+long countByTipo(TipoSocio tipo);
+\`\`\`
+
+Igual que \`count()\` de m06, pero contando solo los que cumplen la condición. Devuelve un \`long\`. Y como \`tipo\` es un enum, el parámetro es \`TipoSocio tipo\`.
+
+### Campos que son otra entidad
+
+En \`Prestamo\`, el campo \`libro\` es un \`Libro\` (la relación \`@ManyToOne\` de m05). Para buscar por él, el parámetro es **un \`Libro\`**, no su id: \`existsByLibroAndDevuelto(Libro libro, boolean devuelto)\`. Siempre la misma regla: **el parámetro es del tipo del campo**.
+
+### Extra: @Query, cuando el nombre se queda corto
+
+Si una consulta es tan larga que el nombre sería kilométrico, puedes escribirla tú con **@Query**, en un lenguaje llamado **JPQL** (se parece a SQL, pero habla de **entidades y campos**, no de tablas):
+
+\`\`\`java
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+@Query("SELECT l FROM Libro l WHERE l.autor = :autor")
+List<Libro> buscarPorAutor(@Param("autor") String autor);
+\`\`\`
+
+- \`FROM Libro l\`: la **entidad** \`Libro\` (no la tabla \`libros\`), con un apodo corto, \`l\`.
+- \`l.autor\`: el **campo** \`autor\` de esa entidad.
+- \`:autor\` es un hueco; \`@Param("autor")\` dice qué parámetro lo rellena. Los dos nombres deben ser **iguales**.
+- Con \`@Query\` el nombre del método es libre (\`buscarPorAutor\`): Spring ya no lo lee, lee la consulta.`,
+      challenges: [
+        {
+          id: 'm07-l3-c1',
+          title: '¿Existe ese correo? ¿Cuántos socios hay de un tipo?',
+          instructions: `En \`ISocioRepositorio.java\` añade estos dos métodos debajo de los que ya tienes:
+
+1. \`boolean existsByCorreo(String correo);\` (exists, **con s**)
+2. \`long countByTipo(TipoSocio tipo);\``,
+          files: conSocio(repoCon('Socio', [CORREO, TIPO_M], SOCIO_IMPORTS_2)),
+          activeFile: SOCIO_REPO,
+          hints: [
+            'Uno responde sí o no (boolean) y el otro un número (long). Ninguno trae socios.',
+            'existsBy + Correo, con s en exists. countBy + Tipo, con el enum TipoSocio como parámetro.',
+            'Escribe: boolean existsByCorreo(String correo); y long countByTipo(TipoSocio tipo);',
+          ],
+          solution: { [SOCIO_REPO]: repoCon('Socio', [CORREO, TIPO_M, EXISTS_M, COUNT_M], SOCIO_IMPORTS_2) },
+          checks: [
+            chkMetodo(SOCIO_REPO, metodo(SI_NO, 'existsByCorreo', p('String')), 'Tiene boolean existsByCorreo(String correo)',
+              'Falta boolean existsByCorreo(String correo); dentro de ISocioRepositorio.'),
+            chkSinS(SOCIO_REPO),
+            chkError(SOCIO_REPO, '(?:Optional|List)\\s*<[^>]*>\\s+existsBy', 'existsBy responde sí o no',
+              'existsBy responde sí o no: devuelve boolean, no Optional ni List.'),
+            chkMetodo(SOCIO_REPO, metodo(NUMERO, 'countByTipo', p('TipoSocio')), 'Tiene long countByTipo(TipoSocio tipo)',
+              'Falta long countByTipo(TipoSocio tipo); dentro de ISocioRepositorio.'),
+            chkNoInt(SOCIO_REPO),
+            chkTipoNoString(SOCIO_REPO),
+            chkCorreo(SOCIO_REPO, 'No borres Optional<Socio> findByCorreo(String correo); de los retos anteriores.'),
+            chkTipo(SOCIO_REPO, 'No borres List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo); de los retos anteriores.'),
+            chkSigue(SOCIO_REPO, 'Socio'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm07-l3-c2',
+          title: 'Extra: tu propia consulta con @Query',
+          instructions: `En \`ILibroRepositorio.java\`:
+
+1. Añade los imports \`import org.springframework.data.jpa.repository.Query;\` e \`import org.springframework.data.repository.query.Param;\`
+2. Debajo de los otros métodos, escribe:
+
+\`\`\`java
+@Query("SELECT l FROM Libro l WHERE l.autor = :autor")
+List<Libro> buscarPorAutor(@Param("autor") String autor);
+\`\`\`
+
+En la consulta va la **entidad** \`Libro\`, no la tabla \`libros\`.`,
+          files: conLibro(repoCon('Libro', [ISBN, CATEGORIA_M, AUTOR_M, TITULO_M], LIBRO_IMPORTS_2)),
+          activeFile: LIBRO_REPO,
+          hints: [
+            '@Query va justo encima del método, igual que otras anotaciones, y lleva la consulta entre comillas dobles.',
+            'La consulta: SELECT l FROM Libro l WHERE l.autor = :autor. El hueco :autor se rellena con @Param("autor").',
+            'Dos líneas: @Query("SELECT l FROM Libro l WHERE l.autor = :autor") y debajo List<Libro> buscarPorAutor(@Param("autor") String autor);',
+          ],
+          solution: { [LIBRO_REPO]: repoCon('Libro', [ISBN, CATEGORIA_M, AUTOR_M, TITULO_M, QUERY_M], LIBRO_IMPORTS_3) },
+          checks: [
+            chkImport(LIBRO_REPO, 'org.springframework.data.jpa.repository', 'Query'),
+            chkImport(LIBRO_REPO, 'org.springframework.data.repository.query', 'Param'),
+            chkMetodo(LIBRO_REPO,
+              `${L}@Query\\s*\\(\\s*(?:value\\s*=\\s*)?"\\s*[Ss][Ee][Ll][Ee][Cc][Tt]\\s+(\\w+)\\s+[Ff][Rr][Oo][Mm]\\s+Libro\\s+\\1\\s+[Ww][Hh][Ee][Rr][Ee]\\s+\\1\\.autor\\s*=\\s*:autor\\s*"\\s*\\)`,
+              'La consulta es SELECT l FROM Libro l WHERE l.autor = :autor',
+              'Falta @Query("SELECT l FROM Libro l WHERE l.autor = :autor") encima del método.'),
+            chkMetodo(LIBRO_REPO,
+              `"\\s*\\)\\s*(?:public\\s+)?${gen('List', 'Libro')}\\s+buscarPorAutor\\s*\\(\\s*@Param\\s*\\(\\s*(?:value\\s*=\\s*)?"autor"\\s*\\)\\s*${p('String')}\\s*\\)\\s*;?`,
+              'Debajo de @Query está List<Libro> buscarPorAutor(@Param("autor") String autor)',
+              'Justo debajo de @Query debe ir List<Libro> buscarPorAutor(@Param("autor") String autor);'),
+            chkError(LIBRO_REPO, '[Ff][Rr][Oo][Mm]\\s+libros\\b', 'La consulta usa la entidad Libro',
+              'En @Query se escribe el nombre de la entidad (Libro), no el de la tabla (libros): JPQL habla de entidades.'),
+            chkError(LIBRO_REPO, '@Param\\s*\\(\\s*(?:value\\s*=\\s*)?"(?!autor")', '@Param("autor") coincide con :autor',
+              'El nombre de @Param debe ser igual al hueco de la consulta: :autor va con @Param("autor").'),
+            chkIsbn(LIBRO_REPO, 'No borres Optional<Libro> findByIsbn(String isbn); de los retos anteriores.'),
+            chkSigue(LIBRO_REPO, 'Libro'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm07-l3-c3',
+          title: 'Las consultas de los préstamos',
+          instructions: `Reto final del módulo. En \`IPrestamoRepositorio.java\` añade estos tres métodos (mira \`Prestamo.java\` para ver los campos):
+
+1. Los préstamos pendientes o devueltos, del más antiguo al más nuevo:
+   \`List<Prestamo> findByDevueltoOrderByFechaPrestamoAsc(boolean devuelto);\`
+2. Cuántos préstamos hay devueltos o sin devolver:
+   \`long countByDevuelto(boolean devuelto);\`
+3. ¿Este libro tiene un préstamo sin devolver? (el campo \`libro\` es un **Libro**):
+   \`boolean existsByLibroAndDevuelto(Libro libro, boolean devuelto);\`
+
+Y los imports \`import java.util.List;\` e \`import com.biblioteca.models.Libro;\``,
+          files: { '/pom.xml': POM, [PRESTAMO]: PRESTAMO_JAVA, [LIBRO]: LIBRO_JAVA, [PRESTAMO_REPO]: repoCon('Prestamo') },
+          activeFile: PRESTAMO_REPO,
+          hints: [
+            'Los nombres de los campos, tal cual en Prestamo.java: devuelto, fechaPrestamo y libro. Cada parámetro es del tipo de su campo.',
+            'Uno trae una lista ordenada (OrderBy...Asc), otro cuenta (countBy, long) y otro responde sí o no (existsBy con s, boolean). El campo libro es un Libro: necesita su import.',
+            'Los tres métodos están escritos tal cual en las instrucciones: cópialos dentro de las llaves de IPrestamoRepositorio y añade import java.util.List; e import com.biblioteca.models.Libro;',
+          ],
+          solution: {
+            [PRESTAMO_REPO]: repoCon('Prestamo', PRESTAMO_METODOS, ['com.biblioteca.models.Libro', 'java.util.List']),
+          },
+          checks: [
+            chkImport(PRESTAMO_REPO, 'java.util', 'List'),
+            chkImport(PRESTAMO_REPO, 'com.biblioteca.models', 'Libro'),
+            chkMetodo(PRESTAMO_REPO, metodo(gen('List', 'Prestamo'), 'findByDevueltoOrderByFechaPrestamoAsc', p(SI_NO)),
+              'Tiene List<Prestamo> findByDevueltoOrderByFechaPrestamoAsc(boolean devuelto)',
+              'Falta List<Prestamo> findByDevueltoOrderByFechaPrestamoAsc(boolean devuelto); dentro de IPrestamoRepositorio.'),
+            chkMetodo(PRESTAMO_REPO, metodo(NUMERO, 'countByDevuelto', p(SI_NO)), 'Tiene long countByDevuelto(boolean devuelto)',
+              'Falta long countByDevuelto(boolean devuelto); dentro de IPrestamoRepositorio.'),
+            chkMetodo(PRESTAMO_REPO, metodo(SI_NO, 'existsByLibroAndDevuelto', p('Libro'), p(SI_NO)),
+              'Tiene boolean existsByLibroAndDevuelto(Libro libro, boolean devuelto)',
+              'Falta boolean existsByLibroAndDevuelto(Libro libro, boolean devuelto); dentro de IPrestamoRepositorio.'),
+            chkSinS(PRESTAMO_REPO),
+            chkError(PRESTAMO_REPO, 'existsByLibro\\w*\\s*\\(\\s*(?:UUID|String|Long)\\b', 'El campo libro se busca con un Libro',
+              'El campo libro de Prestamo es un Libro: el parámetro es Libro libro, no su id.'),
+            chkError(PRESTAMO_REPO, 'OrderByFecha(?!Prestamo)', 'El orden usa el campo fechaPrestamo',
+              'El campo se llama fechaPrestamo: el orden es OrderByFechaPrestamoAsc.'),
+            chkError(PRESTAMO_REPO, 'Devuelto\\w*\\s*\\([^)]*\\bString\\b', 'devuelto se busca con boolean',
+              'El campo devuelto es boolean (true o false), así que el parámetro es boolean devuelto, no String.'),
+            chkNoInt(PRESTAMO_REPO),
+            chkSigue(PRESTAMO_REPO, 'Prestamo'),
           ],
           xp: 10,
         },
