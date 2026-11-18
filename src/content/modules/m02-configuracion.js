@@ -365,7 +365,207 @@ Así Spring la toma de la variable de entorno \`DB_PASSWORD\` (y queda vacía si
         },
       ],
     },
-//LECCIONES
+    {
+      id: 'm02-l3',
+      title: 'Ver el SQL y crear las tablas',
+      explanation: `Spring Data JPA habla con la base de datos en un idioma llamado **SQL**. Tú no lo escribes, pero a veces conviene **verlo**, como pedirle a un cocinero que te enseñe cada paso de la receta.
+
+**\`spring.jpa.show-sql=true\`** hace justo eso: imprime en la consola cada orden SQL que se manda a la base. Muy útil para aprender y para encontrar fallos.
+
+La otra cara es **\`spring.jpa.hibernate.ddl-auto\`**: decide qué hace Spring con las **tablas** de la base (las tablas son como las hojas de cálculo donde se guardan los datos) cuando la aplicación **arranca**. Más adelante crearás clases que describen lo que se guarda; este ajuste decide si Spring construye las tablas por ti. Tiene cuatro valores:
+
+| Valor | Qué hace | Cuándo usarlo |
+|-------|----------|---------------|
+| \`create\` | Borra las tablas y las crea de nuevo, cada vez que arranca | Practicar con datos desechables |
+| \`create-drop\` | Como \`create\`, y además las borra al apagar | Pruebas: no deja rastro |
+| \`update\` | Conserva las tablas y solo añade lo que falta | Desarrollo con una base en archivo, para no perder datos |
+| \`none\` | No toca nada | Producción: las tablas ya están hechas y nadie debe cambiarlas por accidente |
+
+Imagina una **libreta**: \`create\` arranca con una libreta nueva cada día, \`update\` sigue escribiendo en la misma y \`none\` la deja con candado. Con una base en memoria (la pizarra) como la nuestra, \`create-drop\` o \`create\` encajan bien, porque al apagar se borra todo igual.
+
+\`\`\`properties
+spring.jpa.show-sql=true
+spring.jpa.hibernate.ddl-auto=update
+\`\`\``,
+      challenges: [
+        {
+          id: 'm02-l3-c1',
+          title: 'Muestra el SQL en la consola',
+          instructions: `Queremos ver cada orden SQL. En \`application.properties\` añade la línea:
+
+\`spring.jpa.show-sql=true\``,
+          files: proyecto({ [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA) }),
+          activeFile: PROPS,
+          hints: [
+            'Añade una línea nueva al final de application.properties.',
+            'La clave empieza con spring.jpa y termina con show-sql.',
+            'La línea completa es: spring.jpa.show-sql=true',
+          ],
+          solution: { [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL) },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.jpa.show-sql', 'true'),
+              label: 'show-sql está en true',
+              message: 'Falta la línea spring.jpa.show-sql=true (sin # delante).',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.jpa.show-sql', 'false'),
+              label: 'No queda show-sql=false',
+              message: 'Hay un spring.jpa.show-sql=false: debe ser true.',
+            },
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm02-l3-c2',
+          title: 'No pierdas los datos: ddl-auto update',
+          instructions: `Ahora el archivo trae \`spring.jpa.hibernate.ddl-auto=create\`, que **borra las tablas** en cada arranque. Queremos conservar lo guardado y solo añadir lo que falte.
+
+Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
+          files: proyecto({
+            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=create'),
+          }),
+          activeFile: PROPS,
+          hints: [
+            'Busca la línea spring.jpa.hibernate.ddl-auto, la última del archivo.',
+            'Solo cambia la palabra después del =. Los valores posibles son create, create-drop, update y none.',
+            'La línea queda: spring.jpa.hibernate.ddl-auto=update',
+          ],
+          solution: {
+            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=update'),
+          },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.jpa.hibernate.ddl-auto', 'update'),
+              label: 'ddl-auto vale update',
+              message: 'Falta la línea spring.jpa.hibernate.ddl-auto=update.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.jpa.hibernate.ddl-auto', 'create(-drop)?'),
+              label: 'Ya no queda create ni create-drop',
+              message: 'Todavía hay un ddl-auto=create (o create-drop): borra las tablas en cada arranque. Cámbialo a update.',
+            },
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm02-l3-c3',
+          title: 'Reto final: toda la configuración de la Biblioteca',
+          instructions: `Reúne todo lo aprendido. El archivo \`application.properties\` está casi vacío: escribe **estos ajustes** (uno por línea, sin \`#\` delante; los comentarios son opcionales):
+
+- \`spring.application.name\` = **biblioteca**
+- \`server.port\` = **8082**
+- \`spring.datasource.url\` = **jdbc:h2:mem:biblioteca**
+- \`spring.datasource.username\` = **sa**
+- \`spring.datasource.password\` = **\${DB_PASSWORD:}**
+- \`spring.h2.console.enabled\` = **true**
+- \`spring.h2.console.path\` = **/h2-console**
+- \`spring.jpa.show-sql\` = **true**
+- \`spring.jpa.hibernate.ddl-auto\` = **create-drop** (la base está en memoria, se borra al apagar)`,
+          files: proyecto({ [PROPS]: '# Configuración de la Biblioteca: escribe aquí los ajustes\n' }),
+          activeFile: PROPS,
+          hints: [
+            'Son nueve líneas con el formato clave=valor. Ve una por una, tachando la lista.',
+            'Las claves empiezan por spring.application, server, spring.datasource (3), spring.h2.console (2) y spring.jpa (2).',
+            'Copia las líneas de lo que hiciste en los retos anteriores; solo cambian el puerto (8082) y ddl-auto (create-drop).',
+          ],
+          solution: {
+            [PROPS]: props(
+              '# Configuración de la Biblioteca',
+              NOMBRE,
+              'server.port=8082',
+              URL,
+              USUARIO,
+              CLAVE,
+              ...CONSOLA,
+              SQL,
+              'spring.jpa.hibernate.ddl-auto=create-drop',
+            ),
+          },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.application.name', 'biblioteca'),
+              label: 'spring.application.name=biblioteca',
+              message: 'Falta spring.application.name=biblioteca.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('server.port', '8082'),
+              label: 'server.port=8082',
+              message: 'Falta server.port=8082.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.url', 'jdbc:h2:mem:biblioteca'),
+              label: 'spring.datasource.url=jdbc:h2:mem:biblioteca',
+              message: 'Falta spring.datasource.url=jdbc:h2:mem:biblioteca.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.username', 'sa'),
+              label: 'spring.datasource.username=sa',
+              message: 'Falta spring.datasource.username=sa.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]*\\}'),
+              label: 'spring.datasource.password=${DB_PASSWORD:}',
+              message: 'Falta spring.datasource.password=${DB_PASSWORD:}.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.h2.console.enabled', 'true'),
+              label: 'spring.h2.console.enabled=true',
+              message: 'Falta spring.h2.console.enabled=true.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.h2.console.path', '/h2-console'),
+              label: 'spring.h2.console.path=/h2-console',
+              message: 'Falta spring.h2.console.path=/h2-console.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.jpa.show-sql', 'true'),
+              label: 'spring.jpa.show-sql=true',
+              message: 'Falta spring.jpa.show-sql=true.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.jpa.hibernate.ddl-auto', 'create-drop'),
+              label: 'spring.jpa.hibernate.ddl-auto=create-drop',
+              message: 'Falta spring.jpa.hibernate.ddl-auto=create-drop.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '[^$\\s]\\S*'),
+              label: 'No hay ninguna contraseña escrita a mano',
+              message: 'No escribas la contraseña directamente: usa ${DB_PASSWORD:}.',
+            },
+          ],
+          xp: 10,
+        },
+      ],
+    },
   ],
 }
 

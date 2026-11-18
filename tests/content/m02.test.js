@@ -72,8 +72,8 @@ describe('módulo m02 Configuración (Spring Boot)', () => {
 
   it('los checks toleran espacios alrededor del = y saltos de línea Windows', () => {
     expect(fallan(reto('m02-l1-c1'), 'spring.application.name = biblioteca\r\n')).toEqual([])
-    expect(fallan(reto('m02-l1-c2'), 'server.port  =  8081')).toEqual([])
-    expect(fallan(reto('m02-l1-c2'), '  server.port=8081  \n')).toEqual([])
+    expect(fallan(reto('m02-l1-c2'), 'spring.application.name=biblioteca\nserver.port  =  8081')).toEqual([])
+    expect(fallan(reto('m02-l1-c2'), 'spring.application.name=biblioteca\n  server.port=8081  \n')).toEqual([])
     expect(fallan(reto('m02-l2-c1'), 'spring.datasource.url = jdbc:h2:mem:biblioteca\nspring.datasource.username = sa\n')).toEqual([])
     expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password = ${DB_PASSWORD:}\n')).toEqual([])
     expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password=${DB_PASSWORD:secreta}')).toEqual([])
