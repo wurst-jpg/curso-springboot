@@ -164,4 +164,50 @@ describe('módulo m07 Consultas por nombre (Spring Boot)', () => {
       )
     })
   })
+  describe('lección 2: And, OrderBy y Containing', () => {
+    it('findByCategoriaAndAutor: tolera saltos de línea entre parámetros', () => {
+      const c = reto('m07-l2-c1')
+      const texto = resuelto(c)[LIBRO_REPO].replace('(CategoriaLibro categoria, String autor)', '(\n      CategoriaLibro cat,\n      String nombreAutor\n  )')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('findByCategoriaAndAutor: detecta String para el enum y los parámetros al revés', () => {
+      const c = reto('m07-l2-c1')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByCategoriaAndAutor(CategoriaLibro categoria', 'findByCategoriaAndAutor(String categoria'))).toContainEqual(
+        expect.stringMatching(/enum CategoriaLibro, no String/),
+      )
+      expect(
+        mensajesQueFallan(c, variar(c, LIBRO_REPO, '(CategoriaLibro categoria, String autor)', '(String autor, CategoriaLibro categoria)')),
+      ).toContainEqual(expect.stringMatching(/mismo orden/))
+    })
+
+    it('findByTipoOrderByNombreAsc: detecta String tipo (error de clase) y AndOrderBy', () => {
+      const c = reto('m07-l2-c2')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, '(TipoSocio tipo)', '(String tipo)'))).toContainEqual(
+        expect.stringMatching(/enum TipoSocio, no String/),
+      )
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'findByTipoOrderBy', 'findByTipoAndOrderBy'))).toContainEqual(
+        expect.stringMatching(/sin And/),
+      )
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'import com.biblioteca.models.helpers.TipoSocio;\n', ''))).toEqual([
+        expect.stringMatching(/import com\.biblioteca\.models\.helpers\.TipoSocio/),
+      ])
+    })
+
+    it('findByTipoOrderByNombreAsc: conserva findByCorreo', () => {
+      const c = reto('m07-l2-c2')
+      expect(c.files[SOCIO_REPO]).toMatch(/Optional<Socio> findByCorreo\(String correo\);/)
+    })
+
+    it('findByTituloContainingIgnoreCase: detecta findByTitle y la tilde en Título', () => {
+      const c = reto('m07-l2-c3')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByTitulo', 'findByTitle'))).toContainEqual(expect.stringMatching(/se llama titulo/))
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByTitulo', 'findByTítulo'))).toContainEqual(expect.stringMatching(/sin tilde/))
+    })
+
+    it('findByTituloContainingIgnoreCase: los métodos anteriores siguen ahí', () => {
+      const c = reto('m07-l2-c3')
+      ;['findByIsbn', 'findByCategoria(', 'findByCategoriaAndAutor'].forEach((m) => expect(c.files[LIBRO_REPO], m).toContain(m))
+    })
+  })
 })

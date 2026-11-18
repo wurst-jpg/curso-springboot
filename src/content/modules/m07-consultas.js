@@ -435,6 +435,23 @@ const chkCategoriaNoString = (path) =>
   chkError(path, 'findByCategoria\\w*\\s*\\(\\s*String\\b', 'categoria se busca con el enum, no con String',
     'categoria es del tipo enum CategoriaLibro, no String: el parámetro debe ser CategoriaLibro categoria.')
 
+const AUTOR_M = 'List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor);'
+const TIPO_M = 'List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo);'
+const TITULO_M = 'List<Libro> findByTituloContainingIgnoreCase(String titulo);'
+const SOCIO_IMPORTS_2 = ['com.biblioteca.models.helpers.TipoSocio', 'java.util.List', 'java.util.Optional']
+
+const chkAutor = (path, message) =>
+  chkMetodo(path, metodo(gen('List', 'Libro'), 'findByCategoriaAndAutor', p('CategoriaLibro'), p('String')),
+    'Tiene List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor)', message)
+const chkCorreo = (path, message) =>
+  chkMetodo(path, metodo(gen('Optional', 'Socio'), 'findByCorreo', p('String')), 'Tiene Optional<Socio> findByCorreo(String correo)', message)
+const chkTipo = (path, message) =>
+  chkMetodo(path, metodo(gen('List', 'Socio'), 'findByTipoOrderByNombreAsc', p('TipoSocio')),
+    'Tiene List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo)', message)
+const chkTipoNoString = (path) =>
+  chkError(path, '(?:findBy|countBy)Tipo\\w*\\s*\\(\\s*String\\b', 'tipo se busca con el enum, no con String',
+    'tipo es del tipo enum TipoSocio, no String: el parámetro debe ser TipoSocio tipo.')
+
 const modulo = {
   id: 'm07',
   title: 'Consultas por nombre',
@@ -552,6 +569,130 @@ Ojo: \`categoria\` es un enum (\`CategoriaLibro\`), así que el parámetro es **
             chkError(LIBRO_REPO, `${gen('Optional', 'Libro')}\\s+findByCategoria`, 'Devuelve una lista, no Optional',
               'Hay muchos libros de una misma categoría: devuelve una lista, List<Libro>, no Optional.'),
             chkIsbn(LIBRO_REPO, 'No borres Optional<Libro> findByIsbn(String isbn); del reto anterior.'),
+            chkSigue(LIBRO_REPO, 'Libro'),
+          ],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm07-l2',
+      title: 'Combinar y ordenar: And, OrderBy y Containing',
+      explanation: `Al bibliotecario le puedes pedir cosas más concretas: "tráeme las **novelas** **de** García Márquez", "dame la lista de **estudiantes** **ordenada por nombre**" o "busca los libros cuyo título **contenga** la palabra *mar*". Con Spring, todo eso sigue siendo **solo el nombre del método**.
+
+### And: dos condiciones a la vez
+
+\`\`\`java
+List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor);
+\`\`\`
+
+\`And\` ("y") une dos campos. Los **parámetros van en el mismo orden** que los campos en el nombre: primero \`categoria\` (el enum), después \`autor\` (un \`String\`). Spring los empareja por posición, no por cómo los llames.
+
+### OrderBy...Asc: ordenar el resultado
+
+\`\`\`java
+List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo);
+\`\`\`
+
+Después de la condición pegas **OrderBy** + el campo + **Asc** (de *ascending*: de la A a la Z) o **Desc** (de la Z a la A). \`OrderBy\` va pegado a la condición, **sin And** (\`findByTipoAndOrderBy...\` está mal). Y \`tipo\` es el enum \`TipoSocio\`, así que el parámetro es \`TipoSocio tipo\`.
+
+### Containing e IgnoreCase: buscar un trozo de texto
+
+\`\`\`java
+List<Libro> findByTituloContainingIgnoreCase(String titulo);
+\`\`\`
+
+- **Containing**: el título **contiene** ese trozo, en cualquier parte (con "mar" encuentra "El viejo y el **mar**").
+- **IgnoreCase**: no importan mayúsculas ni minúsculas ("MAR", "Mar" y "mar" valen igual).
+
+Como siempre, los nombres de los campos van **exactamente** como en la entidad: \`Titulo\` (sin tilde y en español, como el campo \`titulo\`), no \`Title\` ni \`Título\`.`,
+      challenges: [
+        {
+          id: 'm07-l2-c1',
+          title: 'Libros de una categoría y un autor',
+          instructions: `En \`ILibroRepositorio.java\` añade, debajo de los métodos que ya tienes:
+
+\`List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor);\`
+
+Los parámetros van **en el mismo orden** que en el nombre: primero el enum \`CategoriaLibro\`, después el \`String\` del autor.`,
+          files: conLibro(repoCon('Libro', [ISBN, CATEGORIA_M], LIBRO_IMPORTS_2)),
+          activeFile: LIBRO_REPO,
+          hints: [
+            'Parte de findByCategoria y añade And + el otro campo, Autor.',
+            'Ahora hay dos parámetros, separados por coma: uno para categoria (su tipo es el enum) y otro para autor.',
+            'Escribe: List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor);',
+          ],
+          solution: { [LIBRO_REPO]: repoCon('Libro', [ISBN, CATEGORIA_M, AUTOR_M], LIBRO_IMPORTS_2) },
+          checks: [
+            chkAutor(LIBRO_REPO, 'Falta List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor); dentro de ILibroRepositorio.'),
+            chkCategoriaNoString(LIBRO_REPO),
+            chkError(LIBRO_REPO, 'findByCategoriaAndAutor\\s*\\(\\s*String\\s+\\w+\\s*,\\s*CategoriaLibro\\b', 'Los parámetros van en el orden del nombre',
+              'Los parámetros van en el mismo orden que en el nombre: primero CategoriaLibro categoria y después String autor.'),
+            chkError(LIBRO_REPO, `${gen('Optional', 'Libro')}\\s+findByCategoriaAndAutor`, 'Devuelve una lista, no Optional',
+              'Un autor puede tener muchos libros de una categoría: devuelve List<Libro>, no Optional.'),
+            chkIsbn(LIBRO_REPO, 'No borres Optional<Libro> findByIsbn(String isbn); de los retos anteriores.'),
+            chkCategoria(LIBRO_REPO, 'No borres List<Libro> findByCategoria(CategoriaLibro categoria); de los retos anteriores.'),
+            chkSigue(LIBRO_REPO, 'Libro'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm07-l2-c2',
+          title: 'Socios de un tipo, ordenados por nombre',
+          instructions: `En \`ISocioRepositorio.java\` (ya tiene \`findByCorreo\`) añade:
+
+\`List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo);\`
+
+Y los imports \`import java.util.List;\` e \`import com.biblioteca.models.helpers.TipoSocio;\`
+
+\`tipo\` es el enum \`TipoSocio\` (mira \`Socio.java\`), así que el parámetro es **TipoSocio tipo**, no \`String\`.`,
+          files: conSocio(repoCon('Socio', [CORREO], ['java.util.Optional'])),
+          activeFile: SOCIO_REPO,
+          hints: [
+            'Primero la condición (findByTipo) y luego, pegado y sin And, el orden: OrderByNombreAsc.',
+            'El parámetro es del tipo del campo tipo: el enum TipoSocio. List y TipoSocio necesitan su import.',
+            'Escribe: List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo); y arriba import java.util.List; e import com.biblioteca.models.helpers.TipoSocio;',
+          ],
+          solution: { [SOCIO_REPO]: repoCon('Socio', [CORREO, TIPO_M], SOCIO_IMPORTS_2) },
+          checks: [
+            chkImport(SOCIO_REPO, 'java.util', 'List'),
+            chkImport(SOCIO_REPO, 'com.biblioteca.models.helpers', 'TipoSocio'),
+            chkTipo(SOCIO_REPO, 'Falta List<Socio> findByTipoOrderByNombreAsc(TipoSocio tipo); dentro de ISocioRepositorio.'),
+            chkTipoNoString(SOCIO_REPO),
+            chkError(SOCIO_REPO, 'AndOrderBy', 'OrderBy va pegado, sin And',
+              'OrderBy va pegado a la condición, sin And: findByTipoOrderByNombreAsc.'),
+            chkCorreo(SOCIO_REPO, 'No borres Optional<Socio> findByCorreo(String correo); del reto anterior.'),
+            chkSigue(SOCIO_REPO, 'Socio'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm07-l2-c3',
+          title: 'Buscar por un trozo del título',
+          instructions: `En \`ILibroRepositorio.java\` añade, debajo de los otros métodos:
+
+\`List<Libro> findByTituloContainingIgnoreCase(String titulo);\`
+
+Así, con "mar" encontrará "El viejo y el mar" y también "MAREA ROJA". El campo se llama \`titulo\`: sin tilde y en español.`,
+          files: conLibro(repoCon('Libro', [ISBN, CATEGORIA_M, AUTOR_M], LIBRO_IMPORTS_2)),
+          activeFile: LIBRO_REPO,
+          hints: [
+            'Empieza por findByTitulo y añade las dos palabras de la lección: una para "contiene" y otra para "da igual mayúsculas".',
+            'Containing = contiene; IgnoreCase = no importan las mayúsculas. Van en ese orden, pegadas al nombre del campo.',
+            'Escribe: List<Libro> findByTituloContainingIgnoreCase(String titulo);',
+          ],
+          solution: { [LIBRO_REPO]: repoCon('Libro', [ISBN, CATEGORIA_M, AUTOR_M, TITULO_M], LIBRO_IMPORTS_2) },
+          checks: [
+            chkMetodo(LIBRO_REPO, metodo(gen('List', 'Libro'), 'findByTituloContainingIgnoreCase', p('String')),
+              'Tiene List<Libro> findByTituloContainingIgnoreCase(String titulo)',
+              'Falta List<Libro> findByTituloContainingIgnoreCase(String titulo); dentro de ILibroRepositorio.'),
+            chkError(LIBRO_REPO, 'findByTitle', 'El nombre usa el campo tal cual: Titulo',
+              'El campo de Libro se llama titulo: el método empieza por findByTitulo, no findByTitle.'),
+            chkError(LIBRO_REPO, 'findByT[íÍ]tulo', 'Titulo va sin tilde',
+              'El campo se llama titulo, sin tilde: escribe findByTitulo, sin tilde en la i.'),
+            chkIsbn(LIBRO_REPO, 'No borres Optional<Libro> findByIsbn(String isbn); de los retos anteriores.'),
+            chkCategoria(LIBRO_REPO, 'No borres List<Libro> findByCategoria(CategoriaLibro categoria); de los retos anteriores.'),
+            chkAutor(LIBRO_REPO, 'No borres List<Libro> findByCategoriaAndAutor(CategoriaLibro categoria, String autor); del reto anterior.'),
             chkSigue(LIBRO_REPO, 'Libro'),
           ],
           xp: 10,
