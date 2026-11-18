@@ -116,9 +116,10 @@ function libro(o = {}) {
   if (o.id) usa.push('Id')
   if (o.table) usa.push('Table')
   const paquete = o.javax ? 'javax' : 'jakarta'
-  const imports = usa.length ? `\n${usa.map((c) => `import ${paquete}.persistence.${c};`).join('\n')}\n` : ''
+  const jpa = usa.length ? `\n${usa.map((c) => `import ${paquete}.persistence.${c};`).join('\n')}\n` : ''
+  const imports = `\nimport java.util.UUID;\n${jpa}`
   const cabecera = `${o.entity ? '@Entity\n' : ''}${o.table ? '@Table(name = "libros")\n' : ''}`
-  const idAnot = `${o.id ? '  @Id\n' : ''}${o.gen ? '  @GeneratedValue(strategy = GenerationType.IDENTITY)\n' : ''}`
+  const idAnot = `${o.id ? '  @Id\n' : ''}${o.gen ? '  @GeneratedValue(strategy = GenerationType.UUID)\n' : ''}`
   const col1 = (a) => (o.cols >= 1 ? `  ${a}\n` : '')
   const col2 = (a) => (o.cols >= 2 ? `  ${a}\n` : '')
   const constructores = [
@@ -133,7 +134,7 @@ function libro(o = {}) {
 ${imports}
 ${cabecera}public class Libro {
 
-${idAnot}  private Long id;
+${idAnot}  private UUID id;
 
 ${col1('@Column(nullable = false, length = 150)')}  private String ${o.campoTitulo ?? 'titulo'};
 
@@ -141,7 +142,7 @@ ${col1('@Column(nullable = false, unique = true, length = 20)')}  private String
 
 ${col2('@Column(name = "nombre_autor", nullable = false, length = 100)')}  private String autor;
 ${constructores ? `\n${constructores}` : ''}
-  public Long getId() {
+  public UUID getId() {
     return id;
   }
 
@@ -209,12 +210,12 @@ const libroTieneId = [
   {
     type: 'file-includes',
     path: LIBRO,
-    pattern: sobre('@Id\\b', campo('Long', 'id')),
-    label: '@Id está encima de private Long id',
-    message: 'Falta @Id justo encima de private Long id; (el @Id marca el número que identifica a cada libro).',
+    pattern: sobre('@Id\\b', campo('UUID', 'id')),
+    label: '@Id está encima de private UUID id',
+    message: 'Falta @Id justo encima de private UUID id; (el @Id marca el código que identifica a cada libro, y es del tipo UUID).',
   },
 ]
-const libroIdentity = [
+const libroGenerado = [
   {
     type: 'file-includes',
     path: LIBRO,
@@ -232,9 +233,16 @@ const libroIdentity = [
   {
     type: 'file-includes',
     path: LIBRO,
-    pattern: sobre('@GeneratedValue\\s*\\(\\s*strategy\\s*=\\s*GenerationType\\s*\\.\\s*IDENTITY\\s*\\)', campo('Long', 'id')),
-    label: '@GeneratedValue(strategy = GenerationType.IDENTITY) sobre el id',
-    message: 'Falta @GeneratedValue(strategy = GenerationType.IDENTITY) encima de private Long id; (junto al @Id).',
+    pattern: sobre('@GeneratedValue\\s*\\(\\s*strategy\\s*=\\s*GenerationType\\s*\\.\\s*UUID\\s*\\)', campo('UUID', 'id')),
+    label: '@GeneratedValue(strategy = GenerationType.UUID) sobre el id',
+    message: 'Falta @GeneratedValue(strategy = GenerationType.UUID) encima de private UUID id; (junto al @Id).',
+  },
+  {
+    type: 'file-excludes',
+    path: LIBRO,
+    pattern: 'GenerationType\\s*\\.\\s*IDENTITY',
+    label: 'No usa IDENTITY con un id UUID',
+    message: 'IDENTITY cuenta 1, 2, 3 y sirve para un id Long. Aquí el id es UUID: usa GenerationType.UUID.',
   },
 ]
 const libroTabla = [
@@ -462,7 +470,7 @@ const socioChecks = [
     path: SOCIO,
     pattern: 'GenerationType\\s*\\.\\s*IDENTITY',
     label: 'No usa IDENTITY con un id UUID',
-    message: 'IDENTITY cuenta 1, 2, 3 y sirve para Long. Para un id UUID la estrategia es GenerationType.UUID.',
+    message: 'IDENTITY cuenta 1, 2, 3 y sirve para un id Long. Para un id UUID la estrategia es GenerationType.UUID.',
   },
   {
     type: 'file-includes',
@@ -534,13 +542,19 @@ Las entidades van en el paquete \`com.biblioteca.models\` (la carpeta \`/src/mai
 **Las anotaciones de hoy** (todas se importan de \`jakarta.persistence\`):
 
 - \`@Entity\` encima de la clase: "esta clase es una ficha: guárdala en una tabla". **Sin \`@Entity\`, la clase es normal y JPA la ignora**: no hay tabla.
-- \`@Id\` encima del atributo \`id\`: el **número de registro** de la ficha. Dos fichas nunca tienen el mismo, y así se encuentra cada libro sin confusión. Toda entidad necesita uno.
-- \`@GeneratedValue(strategy = GenerationType.IDENTITY)\` junto al \`@Id\`: como la **máquina de turnos de la panadería**, tú no eliges el número: la base de datos pone 1, 2, 3… sola. Por eso el \`id\` es \`Long\` y no tiene setter.
+- \`@Id\` encima del atributo \`id\`: el **código de registro** de la ficha. Dos fichas nunca tienen el mismo, y así se encuentra cada libro sin confusión. Toda entidad necesita uno.
+- \`@GeneratedValue(strategy = GenerationType.UUID)\` junto al \`@Id\`: **tú no eliges el código**, se crea solo al guardar el libro. Por eso el \`id\` no tiene setter.
+
+**¿Qué es un UUID?** Mira la etiqueta de tu nevera: tiene un **número de serie** largo y raro, como \`3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b77\`. Nadie lo eligió a mano y no se repite en ningún otro aparato del mundo. Eso es un UUID. En el proyecto de clase **todas** las entidades usan UUID, así que el atributo es \`private UUID id;\` (la clase \`UUID\` viene de Java: \`import java.util.UUID;\`).
+
+Verás también otra opción muy común: \`@GeneratedValue(strategy = GenerationType.IDENTITY)\` con \`private Long id;\`. Funciona como la **máquina de turnos de la panadería**: la base de datos cuenta 1, 2, 3… Es más corta, pero cualquiera puede **adivinar** el siguiente número (si existe el libro 7, seguro que existe el 8), y hay que preguntar a la base de datos cuál toca. Con UUID no pasa ninguna de las dos cosas. En este curso usamos UUID.
 - \`@Table(name = "libros")\` encima de la clase: elige el **nombre del cajón**. Sin ella, la tabla se llamaría como la clase (\`libro\`). Se suele usar el plural.
 
 Ojo: en tutoriales antiguos verás \`javax.persistence\`. Es el **nombre viejo**: en Spring Boot 4 es siempre \`jakarta.persistence\`. Con \`javax\` el proyecto no compila.
 
 \`\`\`java
+import java.util.UUID;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 
@@ -548,7 +562,7 @@ import jakarta.persistence.Id;
 public class Libro {
 
   @Id
-  private Long id;
+  private UUID id;
   ...
 }
 \`\`\``,
@@ -560,13 +574,13 @@ public class Libro {
 
 1. Debajo de \`package com.biblioteca.models;\` añade los imports \`import jakarta.persistence.Entity;\` e \`import jakarta.persistence.Id;\`
 2. Escribe **@Entity** justo encima de \`public class Libro\`.
-3. Escribe **@Id** justo encima de \`private Long id;\``,
+3. Escribe **@Id** justo encima de \`private UUID id;\` (el \`import java.util.UUID;\` ya está).`,
           files: proyecto({ [LIBRO]: libro() }),
           activeFile: LIBRO,
           hints: [
             'Una anotación es una etiqueta que empieza por @ y se escribe en la línea de encima de lo que etiqueta.',
             'Los imports van entre la línea package y la clase. Las dos clases vienen de jakarta.persistence (no de javax).',
-            'Debe quedar: import jakarta.persistence.Entity; import jakarta.persistence.Id; luego @Entity encima de public class Libro, y @Id encima de private Long id;',
+            'Debe quedar: import jakarta.persistence.Entity; import jakarta.persistence.Id; luego @Entity encima de public class Libro, y @Id encima de private UUID id;',
           ],
           solution: { [LIBRO]: libro({ entity: true, id: true }) },
           checks: [...libroEsEntidad, ...libroTieneId, sinJavax(LIBRO, 'Libro.java')],
@@ -574,20 +588,22 @@ public class Libro {
         },
         {
           id: 'm03-l1-c2',
-          title: 'Que la base de datos ponga el número',
-          instructions: `No queremos inventar el \`id\` de cada libro a mano: que lo ponga la base de datos (1, 2, 3…).
+          title: 'Que el código del libro se cree solo',
+          instructions: `No queremos inventar el \`id\` de cada libro a mano: que se cree solo, como un UUID.
 
 1. Añade los imports \`import jakarta.persistence.GeneratedValue;\` e \`import jakarta.persistence.GenerationType;\`
-2. Justo debajo de \`@Id\` (encima de \`private Long id;\`) escribe **@GeneratedValue(strategy = GenerationType.IDENTITY)**.`,
+2. Justo debajo de \`@Id\` (encima de \`private UUID id;\`) escribe **@GeneratedValue(strategy = GenerationType.UUID)**.
+
+(No uses \`IDENTITY\`: esa estrategia cuenta 1, 2, 3 y es para un id \`Long\`.)`,
           files: proyecto({ [LIBRO]: libro({ entity: true, id: true }) }),
           activeFile: LIBRO,
           hints: [
             'La anotación que hace que el número se ponga solo se llama @GeneratedValue y va junto al @Id.',
-            'Entre paréntesis le dices la estrategia: strategy = GenerationType.IDENTITY (la base de datos cuenta 1, 2, 3…).',
-            'Quedan dos líneas seguidas encima del id: @Id y debajo @GeneratedValue(strategy = GenerationType.IDENTITY)',
+            'Entre paréntesis le dices la estrategia: strategy = GenerationType.UUID (un código largo que nunca se repite).',
+            'Quedan dos líneas seguidas encima del id: @Id y debajo @GeneratedValue(strategy = GenerationType.UUID)',
           ],
           solution: { [LIBRO]: libro({ entity: true, id: true, gen: true }) },
-          checks: [...libroIdentity, ...libroTieneId, ...libroEsEntidad, sinJavax(LIBRO, 'Libro.java')],
+          checks: [...libroGenerado, ...libroTieneId, ...libroEsEntidad, sinJavax(LIBRO, 'Libro.java')],
           xp: 10,
         },
         {
@@ -605,7 +621,7 @@ public class Libro {
             'Encima de public class Libro deben quedar dos líneas: @Entity y @Table(name = "libros")',
           ],
           solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true }) },
-          checks: [...libroTabla, ...libroEsEntidad, ...libroIdentity, sinJavax(LIBRO, 'Libro.java')],
+          checks: [...libroTabla, ...libroEsEntidad, ...libroGenerado, sinJavax(LIBRO, 'Libro.java')],
           xp: 10,
         },
       ],
@@ -702,25 +718,24 @@ Escribe, justo encima de ese constructor, un **constructor vacío**: \`public Li
     },
     {
       id: 'm03-l3',
-      title: 'Socio con UUID y los errores de siempre',
-      explanation: `Mira la etiqueta de tu nevera: tiene un **número de serie** largo y raro, como \`3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b77\`. Nadie lo eligió a mano y no se repite en ningún otro aparato del mundo. Eso es un **UUID**.
-
-Para los libros usamos 1, 2, 3 (\`IDENTITY\`). Para los **socios** usaremos UUID, como en el proyecto de clase:
-
-- Con 1, 2, 3 es fácil **adivinar** el siguiente: si tu socio es el 7, el 8 existe seguro. Un UUID no se puede adivinar.
-- Un UUID se puede crear **sin preguntar a la base de datos** cuál fue el último número.
-
-Cambian dos cosas respecto a \`Libro\`:
+      title: 'Socio y los errores de siempre',
+      explanation: `Una biblioteca no solo tiene fichas de libros: también tiene un **fichero de socios**, con una ficha por persona (nombre y correo). Es otra entidad, \`Socio\`, y se hace **igual** que \`Libro\`:
 
 \`\`\`java
 import java.util.UUID;   // UUID viene de Java, no de jakarta
 
-@Id
-@GeneratedValue(strategy = GenerationType.UUID)
-private UUID id;          // el tipo es UUID, no Long
+@Entity
+@Table(name = "socios")
+public class Socio {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;          // también UUID, como Libro
+  ...
+}
 \`\`\`
 
-Y el getter es \`public UUID getId()\`. Todo lo demás (\`@Entity\`, \`@Table\`, \`@Column\`, el constructor vacío) es igual.
+El getter del id es \`public UUID getId()\`. El correo, como el ISBN, no se puede repetir: dos socios no comparten correo.
 
 **Los tres errores que más se ven en clase** (en un proyecto, a la clase \`Video\` le faltaba el \`@Entity\`):
 
@@ -764,7 +779,7 @@ Y el getter es \`public UUID getId()\`. Todo lo demás (\`@Entity\`, \`@Table\`,
               message: 'Todavía aparece titlo (le falta la u): escríbelo titulo.',
             },
             ...libroTabla,
-            ...libroIdentity,
+            ...libroGenerado,
             libroVacio,
           ],
           xp: 10,
@@ -786,7 +801,7 @@ Y el getter es \`public UUID getId()\`. Todo lo demás (\`@Entity\`, \`@Table\`,
           activeFile: LIBRO,
           hints: [
             'Pulsa "Nuevo archivo" y escribe la ruta src/main/java/com/biblioteca/models/Socio.java. Copiar la forma de Libro.java ayuda mucho.',
-            'Lo que cambia respecto a Libro: el id es UUID (import java.util.UUID;) con GenerationType.UUID, la tabla es "socios" y los atributos son nombre y correo.',
+            'Lo que cambia respecto a Libro: la tabla es "socios" y los atributos son nombre y correo. El id es igual: private UUID id; con GenerationType.UUID.',
             'Encima del id: @Id y @GeneratedValue(strategy = GenerationType.UUID). Encima de correo: @Column(nullable = false, unique = true, length = 150). No olvides @Entity ni public Socio() { }.',
           ],
           solution: { [SOCIO]: SOCIO_CODE },

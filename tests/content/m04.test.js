@@ -76,6 +76,17 @@ describe('módulo m04 Enums en entidades', () => {
     expect(todo).not.toMatch(/@ManyToOne|@OneToMany|@JoinColumn|mappedBy|@Json|JpaRepository|@Repository|Repositorio|findBy|existsBy|@Query|@Valid|@NotNull/)
   })
 
+  it('todo Libro y Socio (inicio y solución) tiene id UUID con GenerationType.UUID', () => {
+    retos().forEach((c) => {
+      ;[c.files, c.solution].forEach((f) =>
+        [LIBRO, SOCIO].filter((p) => p in f).forEach((p) => {
+          expect(f[p], `${c.id} ${p}`).toMatch(/import java\.util\.UUID;[\s\S]*@Id\n {2}@GeneratedValue\(strategy = GenerationType\.UUID\)\n {2}private UUID id;[\s\S]*public UUID getId\(\)/)
+          expect(f[p], `${c.id} ${p}`).not.toMatch(/IDENTITY|\bLong\b/)
+        }),
+      )
+    })
+  })
+
   it('las soluciones usan jakarta.persistence y los enums viven en models/helpers', () => {
     retos().forEach((c) => {
       Object.values(c.solution).forEach((t) => expect(t, c.id).not.toMatch(/javax\.persistence/))

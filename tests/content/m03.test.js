@@ -28,10 +28,11 @@ const solucionCon = (c, path, cambio) => {
 
 // Libro escrito "a su manera": todo junto, sin espacios, atributos en otro orden, import con *.
 const LIBRO_COMPACTO = `package com.biblioteca.models;
+import java.util.*;
 import jakarta.persistence.*;
 @Entity @Table(name="libros")
 public class Libro {
-  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
+  @Id @GeneratedValue(strategy=GenerationType.UUID) private UUID id;
   @Column(length=150,nullable=false)
   private String titulo;
   @Column(length=20, unique=true,nullable=false) private String isbn;
@@ -39,7 +40,7 @@ public class Libro {
   private String autor;
   protected Libro(){}
   public Libro(String titulo, String isbn, String autor) { this.titulo = titulo; this.isbn = isbn; this.autor = autor; }
-  public Long getId() { return id; }
+  public UUID getId() { return id; }
   public String getTitulo() { return titulo; }
   public void setTitulo(String titulo) { this.titulo = titulo; }
   public String getIsbn() { return isbn; }
@@ -129,13 +130,23 @@ describe('módulo m03 Entidades', () => {
     it('@Id tiene que ir sobre el atributo id', () => {
       const c = reto('m03-l1-c1')
       const files = solucionCon(c, LIBRO, (t) => t.replace(/ {2}@Id\n/, '').replace('private String titulo;', '@Id\n  private String titulo;'))
-      expect(fallan(c, files).map((k) => k.label)).toContain('@Id está encima de private Long id')
+      expect(fallan(c, files).map((k) => k.label)).toContain('@Id está encima de private UUID id')
     })
 
-    it('@GeneratedValue exige la estrategia IDENTITY', () => {
+    it('Libro usa id UUID: el inicial ya trae private UUID id e import java.util.UUID', () => {
+      const c = reto('m03-l1-c1')
+      expect(c.files[LIBRO]).toMatch(/import java\.util\.UUID;[\s\S]*private UUID id;/)
+      expect(c.files[LIBRO]).toMatch(/public UUID getId\(\)/)
+    })
+
+    it('@GeneratedValue exige la estrategia UUID; IDENTITY o Long fallan', () => {
       const c = reto('m03-l1-c2')
-      const files = solucionCon(c, LIBRO, (t) => t.replace('GenerationType.IDENTITY', 'GenerationType.AUTO'))
-      expect(fallan(c, files).length).toBeGreaterThan(0)
+      const auto = solucionCon(c, LIBRO, (t) => t.replace('GenerationType.UUID', 'GenerationType.AUTO'))
+      expect(fallan(c, auto).map((k) => k.label)).toEqual(['@GeneratedValue(strategy = GenerationType.UUID) sobre el id'])
+      const identity = solucionCon(c, LIBRO, (t) => t.replace('GenerationType.UUID', 'GenerationType.IDENTITY'))
+      expect(fallan(c, identity).map((k) => k.message)).toContain('IDENTITY cuenta 1, 2, 3 y sirve para un id Long. Aquí el id es UUID: usa GenerationType.UUID.')
+      const largo = solucionCon(c, LIBRO, (t) => t.replace('private UUID id;', 'private Long id;'))
+      expect(fallan(c, largo).map((k) => k.label)).toContain('@Id está encima de private UUID id')
     })
 
     it('@Table pide exactamente el nombre "libros"', () => {
@@ -216,6 +227,14 @@ describe('módulo m03 Entidades', () => {
       expect(c.files[SOCIO]).toBeUndefined()
       expect(c.files[LIBRO]).toBeDefined()
       expect(c.solution[SOCIO]).toMatch(/import java\.util\.UUID;/)
+    })
+
+    it('al terminar m03, Libro y Socio tienen id UUID con GenerationType.UUID', () => {
+      const final = conSolucion(reto('m03-l3-c2'))
+      ;[final[LIBRO], final[SOCIO]].forEach((t) => {
+        expect(t).toMatch(/@Id\n {2}@GeneratedValue\(strategy = GenerationType\.UUID\)\n {2}private UUID id;/)
+        expect(t).not.toMatch(/IDENTITY|Long/)
+      })
     })
 
     const SOCIO_COMPACTO = `package com.biblioteca.models;

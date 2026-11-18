@@ -118,6 +118,8 @@ function libro(cat = 'no') {
   const conCampo = cat !== 'no'
   const importHelpers = conCampo && cat !== 'string' ? '\nimport com.biblioteca.models.helpers.CategoriaLibro;\n' : ''
   return `package com.biblioteca.models;
+
+import java.util.UUID;
 ${importHelpers}
 ${jpa.map((c) => `import jakarta.persistence.${c};`).join('\n')}
 
@@ -126,8 +128,8 @@ ${jpa.map((c) => `import jakarta.persistence.${c};`).join('\n')}
 public class Libro {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  private Long id;
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
 
   @Column(nullable = false, length = 150)
   private String titulo;
@@ -147,7 +149,7 @@ ${conCampo ? `\n${anot}  private ${tipo} categoria;\n` : ''}
     this.autor = autor;
   }
 
-  public Long getId() {
+  public UUID getId() {
     return id;
   }
 
@@ -563,7 +565,7 @@ Las anotaciones las ponemos en el reto siguiente.`,
           files: proyecto({ [LIBRO]: libro(), [CATEGORIA]: CATEGORIA_CODE, [SOCIO]: socio(), [TIPO]: TIPO_CODE }),
           activeFile: LIBRO,
           hints: [
-            'El tipo del atributo es el nombre del enum, igual que antes escribías String o Long.',
+            'El tipo del atributo es el nombre del enum, igual que antes escribías String o UUID.',
             'Como CategoriaLibro está en el paquete com.biblioteca.models.helpers, hay que importarlo debajo de la línea package.',
             'private CategoriaLibro categoria; y al final public CategoriaLibro getCategoria() { return categoria; } y public void setCategoria(CategoriaLibro categoria) { this.categoria = categoria; }',
           ],
