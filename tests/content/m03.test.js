@@ -143,4 +143,46 @@ describe('módulo m03 Entidades', () => {
       expect(fallan(c, files).length).toBeGreaterThan(0)
     })
   })
+
+  describe('lección 2: @Column y el constructor vacío', () => {
+    it('tiene 3 retos', () => {
+      expect(modulo.lessons[1].id).toBe('m03-l2')
+      expect(modulo.lessons[1].challenges.map((c) => c.id)).toEqual(['m03-l2-c1', 'm03-l2-c2', 'm03-l2-c3'])
+    })
+
+    it('isbn tiene que ser único, obligatorio y de 20; titulo obligatorio y de 150', () => {
+      const c = reto('m03-l2-c1')
+      const sinUnique = solucionCon(c, LIBRO, (t) => t.replace('unique = true, ', ''))
+      expect(fallan(c, sinUnique).map((k) => k.label)).toEqual(['isbn es único (unique = true)'])
+      const largoMal = solucionCon(c, LIBRO, (t) => t.replace('length = 150', 'length = 15'))
+      expect(fallan(c, largoMal).map((k) => k.label)).toEqual(['titulo tiene length = 150'])
+    })
+
+    it('detecta unique = true puesto en titulo en vez de en isbn', () => {
+      const c = reto('m03-l2-c1')
+      const files = solucionCon(c, LIBRO, (t) => t.replace('@Column(nullable = false, length = 150)', '@Column(nullable = false, unique = true, length = 150)'))
+      expect(fallan(c, files).map((k) => k.message)).toContain('unique = true va en isbn, no en titulo: dos libros distintos sí pueden llamarse igual.')
+    })
+
+    it('un @Column dentro de un comentario no cuenta', () => {
+      const c = reto('m03-l2-c1')
+      const files = solucionCon(c, LIBRO, (t) => t.replace('  @Column(nullable = false, unique = true, length = 20)', '  // @Column(nullable = false, unique = true, length = 20)'))
+      expect(fallan(c, files).length).toBeGreaterThan(0)
+    })
+
+    it('autor necesita name = "nombre_autor"', () => {
+      const c = reto('m03-l2-c2')
+      const files = solucionCon(c, LIBRO, (t) => t.replace('name = "nombre_autor"', 'name = "autor"'))
+      expect(fallan(c, files).map((k) => k.label)).toEqual(['La columna de autor se llama "nombre_autor"'])
+    })
+
+    it('el constructor vacío: el inicial no lo tiene y "public void Libro()" no vale', () => {
+      const c = reto('m03-l2-c3')
+      expect(c.files[LIBRO]).toMatch(/public Libro\(String titulo/)
+      const conVoid = solucionCon(c, LIBRO, (t) => t.replace('public Libro() {', 'public void Libro() {'))
+      expect(fallan(c, conVoid).map((k) => k.label)).toEqual(['Libro tiene un constructor vacío'])
+      const sinParams = solucionCon(c, LIBRO, (t) => t.replace(/ {2}public Libro\(String[\s\S]*?\n {2}\}\n\n/, ''))
+      expect(fallan(c, sinParams).map((k) => k.label)).toEqual(['El constructor con titulo, isbn y autor sigue ahí'])
+    })
+  })
 })

@@ -96,11 +96,14 @@ const ANOTACION = '@\\w+(?:\\s*\\([^)]*\\))?'
 const LINEA = `(?:^|\\n)[ \\t]*(?:${ANOTACION}\\s*)*`
 // Una anotación (anot) justo encima de una declaración (decl), con otras anotaciones en medio.
 const sobre = (anot, decl) => `${LINEA}${anot}(?:\\s*${ANOTACION})*\\s*${decl}`
+// @Column(...) que contiene todas las condiciones, en cualquier orden (lookaheads).
+const columna = (...conds) => `@Column\\s*\\(${conds.map((c) => `(?=[^)]*\\b${c})`).join('')}[^)]*\\)`
 const importa = (clase) => `(?:^|\\n)[ \\t]*import\\s+jakarta\\s*\\.\\s*persistence\\s*\\.\\s*(?:\\*|${clase})\\s*;?`
 const campo = (tipo, nombre) => `private\\s+${tipo}\\s+${nombre}\\b`
 
 const NULLABLE = 'nullable\\s*=\\s*false\\b'
 const UNIQUE = 'unique\\s*=\\s*true\\b'
+const largo = (n) => `length\\s*=\\s*${n}\\b`
 
 // ---------- Generador de Libro.java según lo que lleve en cada reto ----------
 // o: { entity, table, id, gen, cols (0 nada, 1 titulo+isbn, 2 también autor), vacio, params,
@@ -251,6 +254,97 @@ const libroTabla = [
   },
 ]
 
+// Columnas de titulo e isbn (m03-l2-c1).
+const libroColumnas = [
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: importa('Column'),
+    label: 'Importa Column de jakarta.persistence',
+    message: 'Falta import jakarta.persistence.Column; en Libro.java.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(NULLABLE), campo('String', 'titulo')),
+    label: 'titulo es obligatorio (nullable = false)',
+    message: 'Encima de private String titulo; falta @Column con nullable = false.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(largo(150)), campo('String', 'titulo')),
+    label: 'titulo tiene length = 150',
+    message: 'El @Column de titulo debe llevar length = 150.',
+  },
+  {
+    type: 'file-excludes',
+    path: LIBRO,
+    pattern: `${columna(UNIQUE)}(?:\\s*${ANOTACION})*\\s*${campo('String', 'titulo')}`,
+    label: 'titulo no es único',
+    message: 'unique = true va en isbn, no en titulo: dos libros distintos sí pueden llamarse igual.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(NULLABLE), campo('String', 'isbn')),
+    label: 'isbn es obligatorio (nullable = false)',
+    message: 'Encima de private String isbn; falta @Column con nullable = false.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(UNIQUE), campo('String', 'isbn')),
+    label: 'isbn es único (unique = true)',
+    message: 'El @Column de isbn debe llevar unique = true: no puede haber dos libros con el mismo ISBN.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(largo(20)), campo('String', 'isbn')),
+    label: 'isbn tiene length = 20',
+    message: 'El @Column de isbn debe llevar length = 20.',
+  },
+]
+// Columna de autor (m03-l2-c2).
+const libroAutor = [
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna('name\\s*=\\s*"nombre_autor"'), campo('String', 'autor')),
+    label: 'La columna de autor se llama "nombre_autor"',
+    message: 'Encima de private String autor; falta @Column con name = "nombre_autor" (comillas dobles, con guion bajo).',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(NULLABLE), campo('String', 'autor')),
+    label: 'autor es obligatorio (nullable = false)',
+    message: 'El @Column de autor debe llevar nullable = false.',
+  },
+  {
+    type: 'file-includes',
+    path: LIBRO,
+    pattern: sobre(columna(largo(100)), campo('String', 'autor')),
+    label: 'autor tiene length = 100',
+    message: 'El @Column de autor debe llevar length = 100.',
+  },
+]
+const libroVacio = {
+  type: 'file-includes',
+  path: LIBRO,
+  pattern: '(?:^|\\n)[ \\t]*(?:public|protected)\\s+Libro\\s*\\(\\s*\\)\\s*\\{',
+  label: 'Libro tiene un constructor vacío',
+  message: 'Falta el constructor vacío public Libro() { } (sin void y sin parámetros). JPA lo necesita para crear el libro al leerlo de la tabla.',
+}
+const libroParams = {
+  type: 'file-includes',
+  path: LIBRO,
+  pattern: 'Libro\\s*\\(\\s*String\\s+titulo\\s*,\\s*String\\s+isbn\\s*,\\s*String\\s+autor\\s*\\)',
+  label: 'El constructor con titulo, isbn y autor sigue ahí',
+  message: 'No borres el constructor public Libro(String titulo, String isbn, String autor): el vacío se añade además de ese.',
+}
+
 const modulo = {
   id: 'm03',
   title: 'Entidades',
@@ -348,6 +442,96 @@ public class Libro {
           ],
           solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true }) },
           checks: [...libroTabla, ...libroEsEntidad, ...libroIdentity, sinJavax(LIBRO, 'Libro.java')],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm03-l2',
+      title: 'Las casillas de la ficha: @Column y el constructor vacío',
+      explanation: `Piensa en un **formulario de inscripción** en papel. Al lado de algunas casillas pone "obligatorio", otras tienen sitio para "máximo 100 letras", y la del documento de identidad avisa "no se puede repetir".
+
+\`@Column\` pone esas mismas **reglas a una columna** de la tabla. Se escribe encima del atributo:
+
+\`\`\`java
+@Column(nullable = false, unique = true, length = 20)
+private String isbn;
+\`\`\`
+
+- \`nullable = false\`: la casilla es **obligatoria**. La base de datos no deja guardar un libro sin ISBN.
+- \`unique = true\`: el valor **no se puede repetir**. Dos libros distintos no pueden tener el mismo ISBN. (El título sí se puede repetir: hay muchos libros llamados "Poemas".)
+- \`length = 20\`: el **tamaño de la casilla** para un texto (como mucho 20 letras). Si no lo pones, son 255.
+- \`name = "nombre_autor"\`: el **nombre de la columna** en la tabla, si quieres que sea distinto del nombre del atributo. En Java sigues usando \`autor\`.
+
+El orden de lo que va dentro del paréntesis da igual, y se separa con comas. Sin \`@Column\`, el atributo **también** se guarda como columna, pero con las reglas por defecto (puede quedar vacío, se puede repetir, 255 letras). ¿Por qué ponerlas? Porque la base de datos es la **última puerta**: aunque haya un fallo en otra parte del programa, nunca guardará un libro sin título o con un ISBN repetido.
+
+**El constructor vacío.** Cuando JPA **lee** un libro de la tabla, primero crea una **ficha en blanco** con \`new Libro()\` y después rellena cada casilla con lo que hay en la fila. Por eso toda entidad necesita un constructor **sin parámetros** (puede ser \`public\` o \`protected\`).
+
+Recuerda de Java: si escribes un constructor con parámetros, Java ya **no** crea el vacío por ti. Así que, si tu entidad tiene \`public Libro(String titulo, ...)\`, también tienes que escribir \`public Libro() { }\`. Sin él, la aplicación falla al leer los libros.`,
+      challenges: [
+        {
+          id: 'm03-l2-c1',
+          title: 'Reglas para el título y el ISBN',
+          instructions: `En \`Libro.java\`:
+
+1. Añade \`import jakarta.persistence.Column;\`
+2. Encima de \`private String titulo;\` escribe **@Column(nullable = false, length = 150)**: obligatorio y de hasta 150 letras.
+3. Encima de \`private String isbn;\` escribe **@Column(nullable = false, unique = true, length = 20)**: obligatorio, sin repetirse y de hasta 20 letras.`,
+          files: proyecto({ [LIBRO]: libro({ entity: true, table: true, id: true, gen: true }) }),
+          activeFile: LIBRO,
+          hints: [
+            '@Column va en la línea de encima de cada atributo, igual que @Id va encima del id.',
+            'Dentro del paréntesis separas las reglas con comas: nullable = false (obligatorio), unique = true (no se repite), length = número (tamaño).',
+            'Encima de titulo: @Column(nullable = false, length = 150). Encima de isbn: @Column(nullable = false, unique = true, length = 20).',
+          ],
+          solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 1 }) },
+          checks: [...libroColumnas, ...libroEsEntidad, sinJavax(LIBRO, 'Libro.java')],
+          xp: 10,
+        },
+        {
+          id: 'm03-l2-c2',
+          title: 'Otro nombre para la columna del autor',
+          instructions: `En la tabla queremos que la columna del autor se llame \`nombre_autor\`, aunque en Java el atributo sigue siendo \`autor\`.
+
+Encima de \`private String autor;\` escribe **@Column(name = "nombre_autor", nullable = false, length = 100)**. No cambies el nombre del atributo.`,
+          files: proyecto({ [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 1 }) }),
+          activeFile: LIBRO,
+          hints: [
+            'Es otro @Column, ahora encima de private String autor;',
+            'name = "..." elige el nombre de la columna en la tabla. Va con comillas dobles, igual que en @Table.',
+            'La línea completa: @Column(name = "nombre_autor", nullable = false, length = 100)',
+          ],
+          solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 2 }) },
+          checks: [
+            ...libroAutor,
+            {
+              type: 'file-includes',
+              path: LIBRO,
+              pattern: campo('String', 'autor'),
+              label: 'El atributo sigue llamándose autor',
+              message: 'En Java el atributo sigue siendo private String autor; solo cambia el nombre de la columna (con name).',
+            },
+            ...libroColumnas,
+            ...libroEsEntidad,
+            sinJavax(LIBRO, 'Libro.java'),
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm03-l2-c3',
+          title: 'La ficha en blanco: el constructor vacío',
+          instructions: `Alguien añadió a \`Libro.java\` un constructor con parámetros: \`public Libro(String titulo, String isbn, String autor)\`. Desde ese momento Java ya no crea el constructor vacío, y JPA lo necesita.
+
+Escribe, justo encima de ese constructor, un **constructor vacío**: \`public Libro() { }\`. No borres el otro.`,
+          files: proyecto({ [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 2, params: true }) }),
+          activeFile: LIBRO,
+          hints: [
+            'Un constructor vacío no recibe nada y no hace nada: solo permite crear un Libro en blanco.',
+            'Se escribe como el otro constructor pero con los paréntesis vacíos y sin nada dentro de las llaves. Los constructores no llevan void.',
+            'Escribe public Libro() { } encima de public Libro(String titulo, String isbn, String autor).',
+          ],
+          solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 2, params: true, vacio: true }) },
+          checks: [libroVacio, libroParams, ...libroEsEntidad, ...libroAutor, sinJavax(LIBRO, 'Libro.java')],
           xp: 10,
         },
       ],
