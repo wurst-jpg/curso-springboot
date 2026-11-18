@@ -245,8 +245,10 @@ const proyecto = ({ libro = libroCon(), socio = socioCon(), prestamo } = {}) => 
 // ---------- Piezas de expresiones regulares (texto) ----------
 // Inicio de línea: así un comentario "// @ManyToOne" no cuenta como anotación.
 const L = String.raw`(?:^|\n)[ \t]*`
-// Cero o más anotaciones seguidas (con o sin paréntesis), en cualquier orden.
-const ANN = String.raw`(?:@\w+(?:\([^)]*\))?\s*)*`
+// Cero o más anotaciones seguidas (con o sin paréntesis), en cualquier orden. Entre ellas se
+// permiten líneas de comentario "// ..." completas (deben llegar al final de la línea, así un
+// "// @ManyToOne" no puede contar como la anotación).
+const ANN = String.raw`(?:(?:@\w+(?:\([^)]*\))?|//[^\n]*\n)\s*)*`
 // La anotación `anotacion` está en el grupo de anotaciones que hay justo encima de `campo`.
 const encima = (anotacion, campo) => `${L}${ANN}${anotacion}\\s*${ANN}${campo}`
 
@@ -261,6 +263,13 @@ const REF = (tipo, valor) => `@${tipo}\\(\\s*(?:value\\s*=\\s*)?"${valor}"\\s*\\
 const importa = (paquete, clase) => `import\\s+${paquete.replace(/\./g, '\\.')}\\.(?:${clase}|\\*)\\s*;`
 
 // ---------- Checks reutilizables ----------
+const importaEn = (path, paquete, clase) => ({
+  type: 'file-includes',
+  path,
+  pattern: importa(paquete, clase),
+  label: `Importa ${paquete}.${clase}`,
+  message: `Falta import ${paquete}.${clase}; en ${path.split('/').pop()}.`,
+})
 const prestamoExiste = {
   type: 'file-exists',
   pattern: '^/src/main/java/com/biblioteca/models/Prestamo\\.java$',
@@ -392,7 +401,7 @@ const modulo = {
 
 En nuestra Biblioteca ya tienes \`Libro\` y \`Socio\`. Ahora falta la tercera entidad, \`Prestamo\`, que **relaciona** las otras dos. Antes de unirlas, el préstamo necesita sus datos propios:
 
-- \`fechaPrestamo\`: el día en que se prestó. Su tipo es \`LocalDate\` (de \`java.time\`), que guarda solo una fecha, como \`2026-11-18\`. **No** uses \`String\`: con texto, la base de datos no sabe que es una fecha y no podría ordenar ni comparar días.
+- \`fechaPrestamo\`: el día en que se prestó. Su tipo es \`LocalDate\` (de \`java.time\`), que guarda solo una fecha, como \`2026-11-18\`. **No** uses \`String\`: con texto, la base de datos no sabe que es una fecha.
 - \`devuelto\`: si ya se devolvió o no. Es un \`boolean\` (sí o no).
 
 \`Prestamo\` es una entidad igual que las que hiciste en m03: lleva \`@Entity\` (sin ella, JPA no crea la tabla \`prestamos\` y luego **no se podrá relacionar** con nada), \`@Table\`, la llave \`id\` de tipo \`UUID\` con \`@GeneratedValue(strategy = GenerationType.UUID)\` y el constructor vacío.
@@ -437,6 +446,11 @@ Importa las anotaciones de \`jakarta.persistence\`. Si quieres, pon \`@Column(nu
               label: 'Importa jakarta.persistence.Entity',
               message: 'Falta import jakarta.persistence.Entity; en Prestamo.java.',
             },
+            importaEn(PRESTAMO, 'jakarta.persistence', 'Table'),
+            importaEn(PRESTAMO, 'jakarta.persistence', 'Id'),
+            importaEn(PRESTAMO, 'jakarta.persistence', 'GeneratedValue'),
+            importaEn(PRESTAMO, 'jakarta.persistence', 'GenerationType'),
+            importaEn(PRESTAMO, 'java.util', 'UUID'),
             {
               type: 'file-includes',
               path: PRESTAMO,
@@ -538,7 +552,7 @@ Importa las anotaciones de \`jakarta.persistence\`. Si quieres, pon \`@Column(nu
             {
               type: 'file-excludes',
               path: PRESTAMO,
-              pattern: String.raw`String\s+fechaPrestamo`,
+              pattern: String.raw`String\s+(?:fechaPrestamo|getFechaPrestamo\s*\()`,
               label: 'Ya no queda String fechaPrestamo',
               message: 'Todavía aparece String fechaPrestamo (mira también el getter y el setter): debe ser LocalDate.',
             },
@@ -616,6 +630,7 @@ Añade también \`import jakarta.persistence.ManyToOne;\` e \`import jakarta.per
               message: 'No uses private UUID libroId: con @ManyToOne el campo es private Libro libro; y JPA guarda el id por ti en la columna libro_id.',
             },
             conEntity(PRESTAMO, 'Prestamo'),
+            sinJavax(PRESTAMO),
           ],
           xp: 10,
         },
@@ -639,7 +654,7 @@ No cambies la relación de \`libro\`: sigue con \`@JoinColumn(name = "libro_id")
             'La columna se llama socio_id, distinta de libro_id: @ManyToOne, @JoinColumn(name = "socio_id") y private Socio socio;',
           ],
           solution: { [PRESTAMO]: PRESTAMO_AMBOS },
-          checks: [socioMany, socioJoin, libroJoin, sinColumnaRepetida, sinIdComoColumna, conEntity(PRESTAMO, 'Prestamo')],
+          checks: [socioMany, socioJoin, libroJoin, sinColumnaRepetida, sinIdComoColumna, conEntity(PRESTAMO, 'Prestamo'), sinJavax(PRESTAMO)],
           xp: 10,
         },
         {
@@ -659,7 +674,7 @@ Arréglalo:
             'La de encima de private Libro libro; queda @JoinColumn(name = "libro_id") y la de encima de private Socio socio; queda @JoinColumn(name = "socio_id").',
           ],
           solution: { [PRESTAMO]: PRESTAMO_AMBOS },
-          checks: [sinIdComoColumna, sinColumnaRepetida, libroJoin, socioJoin, libroMany, socioMany],
+          checks: [sinIdComoColumna, sinColumnaRepetida, libroJoin, socioJoin, libroMany, socioMany, sinJavax(PRESTAMO)],
           xp: 10,
         },
       ],
@@ -689,7 +704,9 @@ La solución son dos anotaciones de \`com.fasterxml.jackson.annotation\` (Jackso
 - \`@JsonManagedReference\` en la **lista** (\`Libro\` y \`Socio\`): esta parte **sí** se escribe.
 - \`@JsonBackReference\` en el campo de **vuelta** (\`libro\` y \`socio\` en \`Prestamo\`): esta parte **no** se escribe, y así se corta el bucle.
 
-Como \`Prestamo\` tiene dos parejas, cada pareja lleva un \`value\` con su nombre, como las **dos mitades de una boleta de rifa** con el mismo número: \`@JsonManagedReference(value = "libro-prestamo")\` en \`Libro\` va con \`@JsonBackReference(value = "libro-prestamo")\` en \`Prestamo\`. Si los dos \`value\` no son **exactamente iguales**, Jackson no encuentra la pareja y da error.`,
+Como \`Prestamo\` tiene dos parejas, cada pareja lleva un \`value\` con su nombre, como las **dos mitades de una boleta de rifa** con el mismo número: \`@JsonManagedReference(value = "libro-prestamo")\` en \`Libro\` va con \`@JsonBackReference(value = "libro-prestamo")\` en \`Prestamo\`. Si los dos \`value\` no son **exactamente iguales**, Jackson no encuentra la pareja y da error al recibir datos.
+
+Ojo: con \`@JsonBackReference\`, el JSON de un préstamo no mostrará su libro ni su socio (esa parte se corta para evitar el bucle); eso se resolverá más adelante en el curso.`,
       challenges: [
         {
           id: 'm05-l3-c1',
@@ -742,6 +759,7 @@ Añade los import \`jakarta.persistence.OneToMany\`, \`java.util.List\` y \`java
               message: 'En Libro.java, mappedBy debe ser exactamente "libro": el nombre del campo private Libro libro; de Prestamo.',
             },
             sinJoinEn(LIBRO, 'Libro'),
+            conEntity(LIBRO, 'Libro'),
           ],
           xp: 10,
         },
@@ -858,7 +876,7 @@ Importa cada anotación de \`com.fasterxml.jackson.annotation\` en el archivo do
             },
             {
               type: 'file-excludes',
-              pattern: String.raw`@Json(?:Managed|Back)Reference\b(?!\s*\()`,
+              pattern: L + String.raw`(?:@\w+(?:\([^)]*\))?[ \t]*)*@Json(?:Managed|Back)Reference\b(?!\s*\()`,
               label: 'Cada referencia lleva su value',
               message: 'Hay un @JsonManagedReference o @JsonBackReference sin value. Con dos parejas, cada una necesita su nombre: (value = "libro-prestamo") o (value = "socio-prestamo").',
             },
@@ -884,12 +902,17 @@ Importa cada anotación de \`com.fasterxml.jackson.annotation\` en el archivo do
               message: 'En la lista de Socio va @JsonManagedReference, no @JsonBackReference.',
             },
             conEntity(PRESTAMO, 'Prestamo'),
+            importaMany,
+            importaJoin,
+            libroMany,
+            socioMany,
             libroJoin,
             socioJoin,
             sinIdComoColumna,
             libroMapped,
             socioMapped,
             sinUsuario,
+            sinJavax(PRESTAMO),
           ],
           xp: 10,
         },

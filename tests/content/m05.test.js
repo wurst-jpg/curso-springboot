@@ -240,6 +240,82 @@ describe('módulo m05 Relaciones (Spring Boot)', () => {
     })
   })
 
+  describe('correcciones de la revisión', () => {
+    it('l1-c2: un getter que sigue devolviendo String falla', () => {
+      const c = reto('m05-l1-c2')
+      const mal = conCambio(c, PRESTAMO, 'public LocalDate getFechaPrestamo()', 'public String getFechaPrestamo()')
+      expect(fallos(c, mal).map((k) => k.label)).toContain('Ya no queda String fechaPrestamo')
+    })
+
+    it('l3-c3 vuelve a comprobar @ManyToOne, sus import y jakarta', () => {
+      const labels = reto('m05-l3-c3').checks.map((k) => k.label)
+      ;['libro tiene @ManyToOne', 'socio tiene @ManyToOne', 'Importa jakarta.persistence.ManyToOne', 'Importa jakarta.persistence.JoinColumn', 'Usa jakarta.persistence, no javax'].forEach((l) =>
+        expect(labels, l).toContain(l),
+      )
+      const c = reto('m05-l3-c3')
+      const mal = conCambio(c, PRESTAMO, '  @ManyToOne\n  @JoinColumn(name = "socio_id")', '  @JoinColumn(name = "socio_id")')
+      expect(fallos(c, mal).map((k) => k.label)).toContain('socio tiene @ManyToOne')
+    })
+
+    it('los retos que tocan Prestamo rechazan javax.persistence', () => {
+      ;['m05-l1-c1', 'm05-l2-c1', 'm05-l2-c2', 'm05-l2-c3', 'm05-l3-c3'].forEach((id) => {
+        const c = reto(id)
+        const mal = conCambio(c, PRESTAMO, 'import jakarta.persistence.Column;', 'import javax.persistence.Column;')
+        expect(fallos(c, mal).map((k) => k.label), id).toContain('Usa jakarta.persistence, no javax')
+      })
+    })
+
+    it('acepta comentarios // entre las anotaciones y el campo', () => {
+      const c = reto('m05-l2-c1')
+      const files = conCambio(c, PRESTAMO, '  @ManyToOne\n  @JoinColumn(name = "libro_id")\n  private Libro libro;', '  @ManyToOne\n  // columna del libro\n  @JoinColumn(name = "libro_id")\n  // el libro prestado\n  private Libro libro;')
+      expect(fallos(c, files).map((k) => k.label)).toEqual([])
+      const fin = reto('m05-l3-c3')
+      const f2 = conCambio(fin, LIBRO, '  @JsonManagedReference(value = "libro-prestamo")\n', '  // pareja libro-prestamo\n  @JsonManagedReference(value = "libro-prestamo")\n  // la lista sí sale en el JSON\n')
+      expect(fallos(fin, f2).map((k) => k.label)).toEqual([])
+    })
+
+    it('un comentario // @ManyToOne sigue sin contar aunque haya comentarios permitidos', () => {
+      const c = reto('m05-l2-c1')
+      const mal = conCambio(c, PRESTAMO, '  @ManyToOne\n', '  // nota\n  // @ManyToOne\n')
+      expect(fallos(c, mal).map((k) => k.label)).toContain('libro tiene @ManyToOne')
+    })
+
+    it('un comentario que menciona @JsonBackReference sin value no hace fallar', () => {
+      const c = reto('m05-l3-c3')
+      const files = conCambio(c, PRESTAMO, 'public class Prestamo {\n', 'public class Prestamo {\n\n  // aquí van los @JsonBackReference de cada pareja\n')
+      expect(fallos(c, files).map((k) => k.label)).toEqual([])
+    })
+
+    it('l1-c1 comprueba los import de Id, Table, GeneratedValue, GenerationType y UUID', () => {
+      const c = reto('m05-l1-c1')
+      const casos = {
+        'import jakarta.persistence.Id;\n': 'Importa jakarta.persistence.Id',
+        'import jakarta.persistence.Table;\n': 'Importa jakarta.persistence.Table',
+        'import jakarta.persistence.GeneratedValue;\n': 'Importa jakarta.persistence.GeneratedValue',
+        'import jakarta.persistence.GenerationType;\n': 'Importa jakarta.persistence.GenerationType',
+        'import java.util.UUID;\n': 'Importa java.util.UUID',
+      }
+      Object.entries(casos).forEach(([linea, label]) => {
+        expect(fallos(c, conCambio(c, PRESTAMO, linea, '')).map((k) => k.label), label).toContain(label)
+      })
+      const files = resuelto(c)
+      const comodin = files[PRESTAMO].replace(/import jakarta\.persistence\.\w+;\n/g, '').replace('import java.time', 'import jakarta.persistence.*;\nimport java.time')
+      expect(fallos(c, { ...files, [PRESTAMO]: comodin }).map((k) => k.label)).toEqual([])
+    })
+
+    it('l3-c1 comprueba que Libro conserva @Entity', () => {
+      const c = reto('m05-l3-c1')
+      expect(fallos(c, conCambio(c, LIBRO, '@Entity\n', '')).map((k) => k.label)).toContain('Libro tiene @Entity')
+    })
+
+    it('la lección 3 avisa del error al recibir datos y de que el préstamo no muestra libro ni socio', () => {
+      const l3 = modulo.lessons[2].explanation
+      expect(l3).toMatch(/da error al recibir datos/)
+      expect(l3).toMatch(/JSON de un préstamo no mostrará su libro ni su socio[\s\S]*se resolverá más adelante/)
+      expect(modulo.lessons[0].explanation).not.toMatch(/no podría ordenar/)
+    })
+  })
+
   it('el pom.xml es el pom.xml base de docs/temario.md', () => {
     const doc = readFileSync('docs/temario.md', 'utf8')
     const base = doc.match(/```xml\n([\s\S]*?)```/)[1]
