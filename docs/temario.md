@@ -37,7 +37,7 @@ Más adelante (todavía no):
 | `Socio` | `nombre`, `correo` (único), `tipo` (enum) |
 | `Prestamo` | `fechaPrestamo`, `devuelto`, `@ManyToOne` a `Libro` y `@ManyToOne` a `Socio` |
 
-Spring Boot 3 (la misma forma vale para Spring Boot 4): las anotaciones de JPA se importan de
+Spring Boot 4 (la versión que se usa en clase): las anotaciones de JPA se importan de
 `jakarta.persistence` (nunca de `javax.persistence`).
 
 ## Convenciones para autores
@@ -53,12 +53,19 @@ de comprobación, cómo probar).
   - `/src/main/java/com/biblioteca/BibliotecaApplication.java`
   - `/src/main/resources/application.properties`
   - Entidades: `/src/main/java/com/biblioteca/models/Libro.java`, `Socio.java`, `Prestamo.java`
-  - Enums: `/src/main/java/com/biblioteca/helpers/` (por ejemplo `CategoriaLibro.java`, `TipoSocio.java`)
-  - Repositorios: `/src/main/java/com/biblioteca/repositories/` (por ejemplo `LibroRepository.java`)
+  - Enums: `/src/main/java/com/biblioteca/models/helpers/` (paquete `com.biblioteca.models.helpers`;
+    por ejemplo `CategoriaLibro.java`, `TipoSocio.java`), como en el proyecto de clase.
+  - Repositorios: `/src/main/java/com/biblioteca/repositories/`. Los nombres llevan una `I` delante,
+    como en clase (`IUsuarioRepositorio`): `ILibroRepositorio`, `ISocioRepositorio`,
+    `IPrestamoRepositorio` (por ejemplo `ILibroRepositorio.java`).
   - Pruebas: `/src/test/java/com/biblioteca/`
 - Entidades y campos: exactamente los de la tabla de arriba (`Libro`, `Socio`, `Prestamo`;
   `titulo`, `isbn`, `autor`, `categoria`, `nombre`, `correo`, `tipo`, `fechaPrestamo`, `devuelto`).
-- Java 17. El proyecto hereda de `spring-boot-starter-parent`.
+- Java 17. El proyecto hereda de `spring-boot-starter-parent` 4.1.2, igual que el proyecto de clase.
+- Nombres de Spring Boot 4 (no los de Spring Boot 3): el *starter* web es
+  `spring-boot-starter-webmvc` (no `spring-boot-starter-web`); la consola de H2 necesita su propio
+  módulo `spring-boot-h2console`; las pruebas usan `spring-boot-starter-data-jpa-test` y
+  `spring-boot-starter-webmvc-test`. No escribas en un reto un nombre de Spring Boot 3.
 
 ### `pom.xml` base
 
@@ -75,7 +82,7 @@ con este bloque). Si un reto pide añadir algo, se parte de este texto.
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.7</version>
+    <version>4.1.2</version>
     <relativePath/>
   </parent>
 
@@ -91,11 +98,21 @@ con este bloque). Si un reto pide añadir algo, se parte de este texto.
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-web</artifactId>
+      <artifactId>spring-boot-h2console</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
@@ -104,7 +121,12 @@ con este bloque). Si un reto pide añadir algo, se parte de este texto.
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
+      <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -133,7 +155,7 @@ con este bloque). Si un reto pide añadir algo, se parte de este texto.
   `{ type: 'file-excludes', path: LIBRO, pattern: 'String\\s+categoria', message: 'categoria debe ser del tipo enum CategoriaLibro, no String.' }`.
   Igual con `String rol`/`String tipo` donde se espera un enum, o `javax.persistence` donde va
   `jakarta.persistence`.
-- **Nunca exijas un nombre que no esté en las instrucciones.** Si el check busca `LibroRepository`,
+- **Nunca exijas un nombre que no esté en las instrucciones.** Si el check busca `ILibroRepositorio`,
   `findByAutor` o `CategoriaLibro`, las instrucciones lo dicen tal cual.
 - **Ningún concepto antes de su módulo.** Por ejemplo, nada de `@Entity` antes de m03 ni de
   `JpaRepository` antes de m06 (ni en los archivos de inicio, ni en las soluciones, ni en los checks).
