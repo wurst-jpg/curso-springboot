@@ -215,6 +215,156 @@ Deja intacto \`spring.application.name\`.`,
         },
       ],
     },
+    {
+      id: 'm02-l2',
+      title: 'La base de datos H2 y su consola',
+      explanation: `Una aplicación de biblioteca necesita un lugar donde **guardar** libros, socios y préstamos: una **base de datos**. En el curso usamos **H2**, una base de datos pequeñita que vive dentro de tu propia aplicación (por eso el \`pom.xml\` ya la trae, junto con \`spring-boot-h2console\`, que veremos abajo). No hay que instalar nada.
+
+H2 se puede usar de dos formas, y se elige con la **URL**:
+
+- **En memoria**: \`jdbc:h2:mem:biblioteca\`. Es una **pizarra**: mientras la aplicación está encendida, todo lo escrito se queda; al apagarla, se borra. Perfecta para practicar.
+- **En archivo**: \`jdbc:h2:file:./data/biblioteca\`. Es un **cuaderno**: lo escrito se guarda en un archivo y sigue ahí mañana.
+
+\`mem\` o \`file\` es la única diferencia; \`biblioteca\` es el nombre que le damos a la base. En el curso usaremos **mem**.
+
+Los ajustes de conexión son tres:
+
+\`\`\`properties
+spring.datasource.url=jdbc:h2:mem:biblioteca
+spring.datasource.username=sa
+spring.datasource.password=\${DB_PASSWORD:}
+\`\`\`
+
+- \`url\`: dónde está la base. \`username\`: quién entra (\`sa\` es el usuario por defecto de H2).
+- \`password\`: la contraseña. **Una contraseña nunca se escribe en el archivo**, porque el archivo se comparte y lo vería todo el mundo, como pegar la clave del wifi en la puerta. En proyectos reales se guarda en una **variable de entorno** (un valor que vive en el ordenador, fuera del código). La forma \`\${DB_PASSWORD:}\` significa: "toma el valor de la variable \`DB_PASSWORD\`; si no existe, usa vacío (lo que después de los dos puntos)". H2 en clase no necesita clave, por eso queda vacío.
+
+**La consola de H2** es una ventana en el navegador para **mirar dentro** de la base, como abrir la vitrina del archivo para ver las fichas. Se activa con:
+
+\`\`\`properties
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+\`\`\`
+
+\`enabled=true\` la enciende (por defecto está apagada, por seguridad) y \`path\` es la dirección: con el puerto 8081 la abrirías en \`http://localhost:8081/h2-console\`. Para que exista, el \`pom.xml\` necesita el módulo \`spring-boot-h2console\`, y ya está en el tuyo.`,
+      challenges: [
+        {
+          id: 'm02-l2-c1',
+          title: 'H2 en memoria: url y usuario',
+          instructions: `En \`application.properties\` la base apunta a un **archivo** y el usuario es \`root\`. Para practicar queremos la **pizarra** (memoria). Cambia estas dos líneas:
+
+- \`spring.datasource.url\` debe valer **jdbc:h2:mem:biblioteca**
+- \`spring.datasource.username\` debe valer **sa**`,
+          files: proyecto({
+            [PROPS]: props(NOMBRE, PUERTO, 'spring.datasource.url=jdbc:h2:file:./data/biblioteca', 'spring.datasource.username=root'),
+          }),
+          activeFile: PROPS,
+          hints: [
+            'Mira las dos líneas que empiezan con spring.datasource. Cambia solo lo que va después del =.',
+            'En la url, cambia file:./data/ por mem: (la url acaba en biblioteca). El usuario es sa.',
+            'Quedan: spring.datasource.url=jdbc:h2:mem:biblioteca y spring.datasource.username=sa',
+          ],
+          solution: { [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO) },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.url', 'jdbc:h2:mem:biblioteca'),
+              label: 'La url es jdbc:h2:mem:biblioteca',
+              message: 'Falta la línea spring.datasource.url=jdbc:h2:mem:biblioteca.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.url', 'jdbc:h2:file:\\S*'),
+              label: 'Ya no se usa la base en archivo',
+              message: 'La url todavía usa jdbc:h2:file: (el cuaderno). Cámbiala a jdbc:h2:mem:biblioteca (la pizarra).',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.username', 'sa'),
+              label: 'El usuario es sa',
+              message: 'Falta la línea spring.datasource.username=sa.',
+            },
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm02-l2-c2',
+          title: 'La contraseña va en una variable de entorno',
+          instructions: `Añade a \`application.properties\` la línea de la contraseña, **sin escribir ninguna clave a mano**:
+
+\`spring.datasource.password=\${DB_PASSWORD:}\`
+
+Así Spring la toma de la variable de entorno \`DB_PASSWORD\` (y queda vacía si no existe).`,
+          files: proyecto({ [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO) }),
+          activeFile: PROPS,
+          hints: [
+            'Añade una línea nueva al final del archivo, debajo de spring.datasource.username.',
+            'La clave del ajuste es spring.datasource.password. El valor va entre llaves, después de un signo de dinero.',
+            'La línea completa es: spring.datasource.password=${DB_PASSWORD:}',
+          ],
+          solution: { [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE) },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]*\\}'),
+              label: 'La contraseña sale de la variable DB_PASSWORD',
+              message: 'Falta la línea spring.datasource.password=${DB_PASSWORD:} (con las llaves y los dos puntos).',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '[^$\\s]\\S*'),
+              label: 'No hay ninguna contraseña escrita a mano',
+              message: 'No escribas la contraseña directamente: usa ${DB_PASSWORD:} para tomarla de una variable de entorno.',
+            },
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm02-l2-c3',
+          title: 'Enciende la consola de H2',
+          instructions: `La consola de H2 está apagada (\`enabled=false\`). Haz estos dos cambios en \`application.properties\`:
+
+- \`spring.h2.console.enabled\` debe valer **true**
+- Añade \`spring.h2.console.path\` con el valor **/h2-console**`,
+          files: proyecto({ [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, 'spring.h2.console.enabled=false') }),
+          activeFile: PROPS,
+          hints: [
+            'Busca la línea spring.h2.console.enabled: ahora termina en false.',
+            'Cámbiala a true y añade debajo otra línea con la clave spring.h2.console.path.',
+            'Quedan: spring.h2.console.enabled=true y spring.h2.console.path=/h2-console',
+          ],
+          solution: { [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA) },
+          checks: [
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.h2.console.enabled', 'true'),
+              label: 'La consola está encendida (enabled=true)',
+              message: 'Falta la línea spring.h2.console.enabled=true.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.h2.console.enabled', 'false'),
+              label: 'Ya no queda enabled=false',
+              message: 'Todavía aparece spring.h2.console.enabled=false: cámbialo a true.',
+            },
+            {
+              type: 'file-includes',
+              path: PROPS,
+              pattern: linea('spring.h2.console.path', '/h2-console'),
+              label: 'La dirección es /h2-console',
+              message: 'Falta la línea spring.h2.console.path=/h2-console.',
+            },
+          ],
+          xp: 10,
+        },
+      ],
+    },
 //LECCIONES
   ],
 }
