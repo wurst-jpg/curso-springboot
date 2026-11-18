@@ -6,6 +6,7 @@ const retos = () => modulo.lessons.flatMap((l) => l.challenges)
 const reto = (id) => retos().find((c) => c.id === id)
 
 const LIBRO = '/src/main/java/com/biblioteca/models/Libro.java'
+const SOCIO = '/src/main/java/com/biblioteca/models/Socio.java'
 
 // ¿Pasa este check con estos archivos? (solo los de archivos; manual cuenta como pasado)
 function pasa(check, files) {
@@ -101,7 +102,7 @@ describe('módulo m03 Entidades', () => {
 
   it('los checks toleran otra forma de escribir Libro (espacios, orden de atributos, import con *, protected)', () => {
     retos()
-      .filter((c) => c.activeFile === LIBRO)
+      .filter((c) => LIBRO in c.solution)
       .forEach((c) => expect(fallan(c, { ...c.files, [LIBRO]: LIBRO_COMPACTO }).map((k) => k.label), c.id).toEqual([]))
   })
 
@@ -183,6 +184,80 @@ describe('módulo m03 Entidades', () => {
       expect(fallan(c, conVoid).map((k) => k.label)).toEqual(['Libro tiene un constructor vacío'])
       const sinParams = solucionCon(c, LIBRO, (t) => t.replace(/ {2}public Libro\(String[\s\S]*?\n {2}\}\n\n/, ''))
       expect(fallan(c, sinParams).map((k) => k.label)).toEqual(['El constructor con titulo, isbn y autor sigue ahí'])
+    })
+  })
+
+  describe('lección 3: Socio con UUID y los errores típicos', () => {
+    it('tiene 2 retos y el módulo suma 8', () => {
+      expect(modulo.lessons.map((l) => l.id)).toEqual(['m03-l1', 'm03-l2', 'm03-l3'])
+      expect(modulo.lessons[2].challenges.map((c) => c.id)).toEqual(['m03-l3-c1', 'm03-l3-c2'])
+      expect(retos()).toHaveLength(8)
+    })
+
+    it('el Libro con errores falla justo por los tres errores de clase', () => {
+      const c = reto('m03-l3-c1')
+      expect(fallan(c, c.files).map((k) => k.label)).toEqual([
+        'Importa Entity de jakarta.persistence',
+        'Libro tiene @Entity encima de la clase',
+        'No usa javax.persistence',
+        'El atributo se llama titulo, como en el getter',
+        'Ya no queda titlo',
+        'Importa Table de jakarta.persistence',
+        'Importa GeneratedValue de jakarta.persistence',
+        'Importa GenerationType de jakarta.persistence',
+      ])
+      // Arreglar solo los imports y @Entity no basta: falta el nombre del atributo.
+      const casi = solucionCon(c, LIBRO, (t) => t.replace('private String titulo;', 'private String titlo;'))
+      expect(fallan(c, casi).map((k) => k.label)).toEqual(['El atributo se llama titulo, como en el getter', 'Ya no queda titlo'])
+    })
+
+    it('el reto de crear Socio no trae Socio.java y sí muestra Libro como modelo', () => {
+      const c = reto('m03-l3-c2')
+      expect(c.files[SOCIO]).toBeUndefined()
+      expect(c.files[LIBRO]).toBeDefined()
+      expect(c.solution[SOCIO]).toMatch(/import java\.util\.UUID;/)
+    })
+
+    const SOCIO_COMPACTO = `package com.biblioteca.models;
+import java.util.*;
+import jakarta.persistence.*;
+@Table(name="socios") @Entity
+public class Socio {
+  @Id @GeneratedValue(strategy=GenerationType.UUID)
+  private UUID id;
+  @Column(length=100,nullable=false) private String nombre;
+  @Column(unique=true,length=150,nullable=false)
+  private String correo;
+  protected Socio(){}
+  public UUID getId(){return id;}
+  public String getNombre(){return this.nombre;}
+  public void setNombre(String n){this.nombre=n;}
+  public String getCorreo(){return correo;}
+  public void setCorreo(String c){this.correo=c;}
+}
+`
+
+    it('acepta Socio escrito de otra forma', () => {
+      const c = reto('m03-l3-c2')
+      expect(fallan(c, { ...c.files, [SOCIO]: SOCIO_COMPACTO }).map((k) => k.label)).toEqual([])
+    })
+
+    it('detecta los errores típicos al crear Socio', () => {
+      const c = reto('m03-l3-c2')
+      const con = (cambio) => fallan(c, solucionCon(c, SOCIO, cambio))
+      expect(con((t) => t.replace('\n@Entity\n', '\n')).map((k) => k.message)).toContain(
+        'Falta la anotación @Entity encima de public class Socio: sin ella, Socio es una clase normal y no se guarda en ninguna tabla.',
+      )
+      expect(con((t) => t.replace('GenerationType.UUID', 'GenerationType.IDENTITY')).map((k) => k.label)).toEqual([
+        '@GeneratedValue(strategy = GenerationType.UUID) sobre el id',
+        'No usa IDENTITY con un id UUID',
+      ])
+      expect(con((t) => t.replace('private UUID id;', 'private Long id;')).map((k) => k.label)).toContain('@Id está encima de private UUID id')
+      expect(con((t) => t.replace('unique = true, ', '')).map((k) => k.label)).toEqual(['correo es único (unique = true)'])
+      expect(con((t) => t.replace('private String correo;', 'private String corrreo;')).map((k) => k.label)).toContain('correo es obligatorio, de 150, encima de private String correo')
+      expect(con((t) => t.replaceAll('jakarta.persistence', 'javax.persistence')).map((k) => k.label)).toContain('No usa javax.persistence')
+      expect(con((t) => t.replace('package com.biblioteca.models;', 'package com.biblioteca;')).map((k) => k.label)).toEqual(['Está en el paquete com.biblioteca.models'])
+      expect(con((t) => t.replace(/ {2}public Socio\(\) \{\n {2}\}\n\n/, '')).map((k) => k.label)).toEqual(['Socio tiene un constructor vacío'])
     })
   })
 })

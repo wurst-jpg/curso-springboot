@@ -345,6 +345,170 @@ const libroParams = {
   message: 'No borres el constructor public Libro(String titulo, String isbn, String autor): el vacío se añade además de ese.',
 }
 
+// Socio.java tal como queda al terminar el módulo (solución de m03-l3-c2).
+const SOCIO_CODE = `package com.biblioteca.models;
+
+import java.util.UUID;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "socios")
+public class Socio {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
+
+  @Column(nullable = false, length = 100)
+  private String nombre;
+
+  @Column(nullable = false, unique = true, length = 150)
+  private String correo;
+
+  public Socio() {
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getNombre() {
+    return nombre;
+  }
+
+  public void setNombre(String nombre) {
+    this.nombre = nombre;
+  }
+
+  public String getCorreo() {
+    return correo;
+  }
+
+  public void setCorreo(String correo) {
+    this.correo = correo;
+  }
+}
+`
+const LIBRO_FINAL = libro({ entity: true, table: true, id: true, gen: true, cols: 2, params: true, vacio: true })
+
+// Getter que devuelve el atributo (atrapa nombres mal escritos entre atributo y getter).
+const getter = (tipo, metodo, atributo) => `public\\s+${tipo}\\s+${metodo}\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+(?:this\\s*\\.\\s*)?${atributo}\\s*;`
+const setter = (metodo, tipo) => `void\\s+${metodo}\\s*\\(\\s*${tipo}\\s+\\w+\\s*\\)`
+
+const socioChecks = [
+  {
+    type: 'file-exists',
+    pattern: '^/src/main/java/com/biblioteca/models/Socio\\.java$',
+    label: 'Existe models/Socio.java',
+    message: 'No encuentro /src/main/java/com/biblioteca/models/Socio.java. Revisa la ruta y la S mayúscula.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: '(?:^|\\n)[ \\t]*package\\s+com\\s*\\.\\s*biblioteca\\s*\\.\\s*models\\s*;?[ \\t]*(?:\\r?\\n|$)',
+    label: 'Está en el paquete com.biblioteca.models',
+    message: 'La primera línea de Socio.java debe ser package com.biblioteca.models; (como en Libro.java).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: importa('Entity'),
+    label: 'Importa Entity de jakarta.persistence',
+    message: 'Falta import jakarta.persistence.Entity; en Socio.java.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@Entity\\b', 'public\\s+class\\s+Socio\\b'),
+    label: 'Socio tiene @Entity encima de la clase',
+    message: 'Falta la anotación @Entity encima de public class Socio: sin ella, Socio es una clase normal y no se guarda en ninguna tabla.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@Table\\s*\\(\\s*name\\s*=\\s*"socios"\\s*\\)', 'public\\s+class\\s+Socio\\b'),
+    label: '@Table(name = "socios") encima de la clase',
+    message: 'Falta @Table(name = "socios") encima de public class Socio (y su import jakarta.persistence.Table).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: '(?:^|\\n)[ \\t]*import\\s+java\\s*\\.\\s*util\\s*\\.\\s*(?:\\*|UUID)\\s*;?',
+    label: 'Importa java.util.UUID',
+    message: 'Falta import java.util.UUID; en Socio.java (UUID no es de jakarta: viene de Java).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@Id\\b', campo('UUID', 'id')),
+    label: '@Id está encima de private UUID id',
+    message: 'Falta @Id encima de private UUID id; (el id de Socio es del tipo UUID, no Long).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre('@GeneratedValue\\s*\\(\\s*strategy\\s*=\\s*GenerationType\\s*\\.\\s*UUID\\s*\\)', campo('UUID', 'id')),
+    label: '@GeneratedValue(strategy = GenerationType.UUID) sobre el id',
+    message: 'Encima de private UUID id; falta @GeneratedValue(strategy = GenerationType.UUID).',
+  },
+  {
+    type: 'file-excludes',
+    path: SOCIO,
+    pattern: 'GenerationType\\s*\\.\\s*IDENTITY',
+    label: 'No usa IDENTITY con un id UUID',
+    message: 'IDENTITY cuenta 1, 2, 3 y sirve para Long. Para un id UUID la estrategia es GenerationType.UUID.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre(columna(NULLABLE, largo(100)), campo('String', 'nombre')),
+    label: 'nombre es obligatorio, de 100, encima de private String nombre',
+    message: 'Encima de private String nombre; falta @Column(nullable = false, length = 100).',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre(columna(NULLABLE, largo(150)), campo('String', 'correo')),
+    label: 'correo es obligatorio, de 150, encima de private String correo',
+    message: 'Encima de private String correo; falta @Column con nullable = false y length = 150. Revisa también que el atributo se llame correo.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: sobre(columna(UNIQUE), campo('String', 'correo')),
+    label: 'correo es único (unique = true)',
+    message: 'El @Column de correo debe llevar unique = true: dos socios no pueden tener el mismo correo.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: '(?:^|\\n)[ \\t]*(?:public|protected)\\s+Socio\\s*\\(\\s*\\)\\s*\\{',
+    label: 'Socio tiene un constructor vacío',
+    message: 'Falta el constructor vacío public Socio() { } que necesita JPA.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: `(?=[\\s\\S]*${getter('UUID', 'getId', 'id')})(?=[\\s\\S]*${getter('String', 'getNombre', 'nombre')})[\\s\\S]*${getter('String', 'getCorreo', 'correo')}`,
+    label: 'Getters getId, getNombre y getCorreo',
+    message: 'Faltan getters: public UUID getId(), public String getNombre() y public String getCorreo(), cada uno devolviendo su atributo.',
+  },
+  {
+    type: 'file-includes',
+    path: SOCIO,
+    pattern: `(?=[\\s\\S]*${setter('setNombre', 'String')})[\\s\\S]*${setter('setCorreo', 'String')}`,
+    label: 'Setters setNombre y setCorreo',
+    message: 'Faltan los setters public void setNombre(String nombre) y public void setCorreo(String correo).',
+  },
+  sinJavax(SOCIO, 'Socio.java'),
+]
+
 const modulo = {
   id: 'm03',
   title: 'Entidades',
@@ -532,6 +696,101 @@ Escribe, justo encima de ese constructor, un **constructor vacío**: \`public Li
           ],
           solution: { [LIBRO]: libro({ entity: true, table: true, id: true, gen: true, cols: 2, params: true, vacio: true }) },
           checks: [libroVacio, libroParams, ...libroEsEntidad, ...libroAutor, sinJavax(LIBRO, 'Libro.java')],
+          xp: 10,
+        },
+      ],
+    },
+    {
+      id: 'm03-l3',
+      title: 'Socio con UUID y los errores de siempre',
+      explanation: `Mira la etiqueta de tu nevera: tiene un **número de serie** largo y raro, como \`3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b77\`. Nadie lo eligió a mano y no se repite en ningún otro aparato del mundo. Eso es un **UUID**.
+
+Para los libros usamos 1, 2, 3 (\`IDENTITY\`). Para los **socios** usaremos UUID, como en el proyecto de clase:
+
+- Con 1, 2, 3 es fácil **adivinar** el siguiente: si tu socio es el 7, el 8 existe seguro. Un UUID no se puede adivinar.
+- Un UUID se puede crear **sin preguntar a la base de datos** cuál fue el último número.
+
+Cambian dos cosas respecto a \`Libro\`:
+
+\`\`\`java
+import java.util.UUID;   // UUID viene de Java, no de jakarta
+
+@Id
+@GeneratedValue(strategy = GenerationType.UUID)
+private UUID id;          // el tipo es UUID, no Long
+\`\`\`
+
+Y el getter es \`public UUID getId()\`. Todo lo demás (\`@Entity\`, \`@Table\`, \`@Column\`, el constructor vacío) es igual.
+
+**Los tres errores que más se ven en clase** (en un proyecto, a la clase \`Video\` le faltaba el \`@Entity\`):
+
+1. **Olvidar \`@Entity\`.** La clase compila, pero no hay tabla: JPA la trata como una clase normal y más adelante falla al intentar guardarla.
+2. **Importar de \`javax.persistence\`.** Es el nombre antiguo; en Spring Boot 4 no existe y el proyecto no compila. Siempre \`jakarta.persistence\`.
+3. **Escribir distinto el atributo y el getter.** Si el atributo es \`titlo\` y el getter hace \`return titulo;\`, Java no encuentra \`titulo\` y no compila. Además, el nombre del atributo es el nombre de la columna: un error ahí se queda en la tabla.`,
+      challenges: [
+        {
+          id: 'm03-l3-c1',
+          title: 'Encuentra los tres errores',
+          instructions: `Este \`Libro.java\` lo escribió un compañero y tiene **los tres errores típicos**. Arréglalos:
+
+1. Los imports usan \`javax.persistence\`: cámbialos todos a **jakarta.persistence**.
+2. Falta **@Entity** encima de \`public class Libro\` (el import ya está).
+3. El atributo se llama \`titlo\`, pero los getters y el constructor usan \`titulo\`: renómbralo a **titulo**.`,
+          files: proyecto({
+            [LIBRO]: libro({ javax: true, table: true, id: true, gen: true, cols: 2, params: true, vacio: true, campoTitulo: 'titlo' }),
+          }),
+          activeFile: LIBRO,
+          hints: [
+            'Revisa tres sitios: las líneas import, la línea de encima de public class Libro y la declaración del título.',
+            'En cada import cambia la palabra javax por jakarta (lo demás se queda igual). Encima de @Table(name = "libros") falta una línea.',
+            'Escribe @Entity encima de @Table(name = "libros") y cambia private String titlo; por private String titulo;',
+          ],
+          solution: { [LIBRO]: LIBRO_FINAL },
+          checks: [
+            ...libroEsEntidad,
+            sinJavax(LIBRO, 'Libro.java'),
+            {
+              type: 'file-includes',
+              path: LIBRO,
+              pattern: sobre(columna(NULLABLE), campo('String', 'titulo')),
+              label: 'El atributo se llama titulo, como en el getter',
+              message: 'El atributo debe llamarse titulo (como en getTitulo y en el constructor): private String titulo;',
+            },
+            {
+              type: 'file-excludes',
+              path: LIBRO,
+              pattern: '\\btitlo\\b',
+              label: 'Ya no queda titlo',
+              message: 'Todavía aparece titlo (le falta la u): escríbelo titulo.',
+            },
+            ...libroTabla,
+            ...libroIdentity,
+            libroVacio,
+          ],
+          xp: 10,
+        },
+        {
+          id: 'm03-l3-c2',
+          title: 'Crea la entidad Socio',
+          instructions: `Ahora tú solo: crea el archivo \`/src/main/java/com/biblioteca/models/Socio.java\`. Puedes mirar \`Libro.java\` como modelo.
+
+1. Paquete \`com.biblioteca.models\`.
+2. Imports: \`java.util.UUID\` y, de \`jakarta.persistence\`: \`Column\`, \`Entity\`, \`GeneratedValue\`, \`GenerationType\`, \`Id\` y \`Table\`.
+3. La clase **Socio** con **@Entity** y **@Table(name = "socios")**.
+4. \`private UUID id;\` con **@Id** y **@GeneratedValue(strategy = GenerationType.UUID)**.
+5. \`private String nombre;\` con **@Column(nullable = false, length = 100)**.
+6. \`private String correo;\` con **@Column(nullable = false, unique = true, length = 150)**.
+7. El constructor vacío **public Socio() { }**.
+8. Los getters \`getId()\` (devuelve \`UUID\`), \`getNombre()\` y \`getCorreo()\`, y los setters \`setNombre\` y \`setCorreo\`.`,
+          files: proyecto({ [LIBRO]: LIBRO_FINAL }),
+          activeFile: LIBRO,
+          hints: [
+            'Pulsa "Nuevo archivo" y escribe la ruta src/main/java/com/biblioteca/models/Socio.java. Copiar la forma de Libro.java ayuda mucho.',
+            'Lo que cambia respecto a Libro: el id es UUID (import java.util.UUID;) con GenerationType.UUID, la tabla es "socios" y los atributos son nombre y correo.',
+            'Encima del id: @Id y @GeneratedValue(strategy = GenerationType.UUID). Encima de correo: @Column(nullable = false, unique = true, length = 150). No olvides @Entity ni public Socio() { }.',
+          ],
+          solution: { [SOCIO]: SOCIO_CODE },
+          checks: socioChecks,
           xp: 10,
         },
       ],
