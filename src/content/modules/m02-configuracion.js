@@ -105,6 +105,7 @@ const NOMBRE = 'spring.application.name=biblioteca'
 const PUERTO = 'server.port=8081'
 const URL = 'spring.datasource.url=jdbc:h2:mem:biblioteca'
 const USUARIO = 'spring.datasource.username=sa'
+const URL_ARCHIVO = 'spring.datasource.url=jdbc:h2:file:./data/biblioteca'
 const CLAVE = 'spring.datasource.password=${DB_PASSWORD:}'
 const CONSOLA = ['spring.h2.console.enabled=true', 'spring.h2.console.path=/h2-console']
 const SQL = 'spring.jpa.show-sql=true'
@@ -225,7 +226,7 @@ H2 se puede usar de dos formas, y se elige con la **URL**:
 - **En memoria**: \`jdbc:h2:mem:biblioteca\`. Es una **pizarra**: mientras la aplicación está encendida, todo lo escrito se queda; al apagarla, se borra. Perfecta para practicar.
 - **En archivo**: \`jdbc:h2:file:./data/biblioteca\`. Es un **cuaderno**: lo escrito se guarda en un archivo y sigue ahí mañana.
 
-\`mem\` o \`file\` es la única diferencia; \`biblioteca\` es el nombre que le damos a la base. En el curso usaremos **mem**.
+\`mem\` o \`file\` es la única diferencia; \`biblioteca\` es el nombre que le damos a la base. Casi siempre usaremos **mem**; en el reto final probarás **file**.
 
 Los ajustes de conexión son tres:
 
@@ -236,7 +237,7 @@ spring.datasource.password=\${DB_PASSWORD:}
 \`\`\`
 
 - \`url\`: dónde está la base. \`username\`: quién entra (\`sa\` es el usuario por defecto de H2).
-- \`password\`: la contraseña. **Una contraseña nunca se escribe en el archivo**, porque el archivo se comparte y lo vería todo el mundo, como pegar la clave del wifi en la puerta. En proyectos reales se guarda en una **variable de entorno** (un valor que vive en el ordenador, fuera del código). La forma \`\${DB_PASSWORD:}\` significa: "toma el valor de la variable \`DB_PASSWORD\`; si no existe, usa vacío (lo que después de los dos puntos)". H2 en clase no necesita clave, por eso queda vacío.
+- \`password\`: la contraseña. **Una contraseña nunca se escribe en el archivo**, porque el archivo se comparte y lo vería todo el mundo, como pegar la clave del wifi en la puerta. En proyectos reales se guarda en una **variable de entorno** (un valor que vive en el ordenador, fuera del código). La forma \`\${DB_PASSWORD:}\` (empieza con el signo $, "dólar", y las llaves) significa: "toma el valor de la variable \`DB_PASSWORD\`; si no existe, usa lo que va después de los dos puntos". Aquí después de los dos puntos no hay nada, así que el valor por defecto es **vacío**: H2 en clase no necesita clave. Nunca pongas una clave de verdad ahí, porque quedaría escrita en el archivo igual que antes.
 
 **La consola de H2** es una ventana en el navegador para **mirar dentro** de la base, como abrir la vitrina del archivo para ver las fichas. Se activa con:
 
@@ -245,7 +246,7 @@ spring.h2.console.enabled=true
 spring.h2.console.path=/h2-console
 \`\`\`
 
-\`enabled=true\` la enciende (por defecto está apagada, por seguridad) y \`path\` es la dirección: con el puerto 8081 la abrirías en \`http://localhost:8081/h2-console\`. Para que exista, el \`pom.xml\` necesita el módulo \`spring-boot-h2console\`, y ya está en el tuyo.`,
+\`enabled=true\` la enciende. Por defecto está apagada, aunque la herramienta \`spring-boot-devtools\` (que ya está en nuestro \`pom.xml\`) la enciende sola mientras desarrollas; escribir \`enabled=true\` lo deja claro para todos. \`path\` es la dirección, y \`/h2-console\` ya es la que se usa si no dices nada, pero la escribimos también para que se vea: con el puerto 8081 la abrirías en \`http://localhost:8081/h2-console\`. Para que exista, el \`pom.xml\` necesita el módulo \`spring-boot-h2console\`, y ya está en el tuyo.`,
       challenges: [
         {
           id: 'm02-l2-c1',
@@ -309,9 +310,16 @@ Así Spring la toma de la variable de entorno \`DB_PASSWORD\` (y queda vacía si
             {
               type: 'file-includes',
               path: PROPS,
-              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]*\\}'),
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:\\}'),
               label: 'La contraseña sale de la variable DB_PASSWORD',
-              message: 'Falta la línea spring.datasource.password=${DB_PASSWORD:} (con las llaves y los dos puntos).',
+              message: 'Falta la línea spring.datasource.password=${DB_PASSWORD:} (con las llaves y los dos puntos, y nada después de ellos).',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]+\\}'),
+              label: 'El valor por defecto de la contraseña está vacío',
+              message: 'Después de los dos puntos no debe haber nada: ${DB_PASSWORD:}. Un valor ahí sería una contraseña escrita en el archivo.',
             },
             {
               type: 'file-excludes',
@@ -372,21 +380,23 @@ Así Spring la toma de la variable de entorno \`DB_PASSWORD\` (y queda vacía si
 
 **\`spring.jpa.show-sql=true\`** hace justo eso: imprime en la consola cada orden SQL que se manda a la base. Muy útil para aprender y para encontrar fallos.
 
-La otra cara es **\`spring.jpa.hibernate.ddl-auto\`**: decide qué hace Spring con las **tablas** de la base (las tablas son como las hojas de cálculo donde se guardan los datos) cuando la aplicación **arranca**. Más adelante crearás clases que describen lo que se guarda; este ajuste decide si Spring construye las tablas por ti. Tiene cuatro valores:
+La otra cara es **\`spring.jpa.hibernate.ddl-auto\`**: decide qué hace Spring con las **tablas** de la base (las tablas son como las hojas de cálculo donde se guardan los datos) cuando la aplicación **arranca**. Más adelante crearás clases que describen lo que se guarda; este ajuste decide si Spring construye las tablas por ti. Los valores más usados son estos cuatro (existe un quinto, \`validate\`, que solo comprueba que las tablas existan tal como se espera y da error si no):
 
 | Valor | Qué hace | Cuándo usarlo |
 |-------|----------|---------------|
 | \`create\` | Borra las tablas y las crea de nuevo, cada vez que arranca | Practicar con datos desechables |
-| \`create-drop\` | Como \`create\`, y además las borra al apagar | Pruebas: no deja rastro |
-| \`update\` | Conserva las tablas y solo añade lo que falta | Desarrollo con una base en archivo, para no perder datos |
+| \`create-drop\` | Como \`create\`, y además las borra al apagar | Base **en memoria**: no deja rastro |
+| \`update\` | Conserva las tablas y solo añade lo que falte | Base **en archivo**, cuando quieres conservar los datos entre arranques |
 | \`none\` | No toca nada | Producción: las tablas ya están hechas y nadie debe cambiarlas por accidente |
 
-Imagina una **libreta**: \`create\` arranca con una libreta nueva cada día, \`update\` sigue escribiendo en la misma y \`none\` la deja con candado. Con una base en memoria (la pizarra) como la nuestra, \`create-drop\` o \`create\` encajan bien, porque al apagar se borra todo igual.
+Imagina una **libreta**: \`create\` arranca con una libreta nueva cada día, \`update\` sigue escribiendo en la misma y \`none\` la deja con candado. Con una base **en memoria** (la pizarra), al apagar se borra todo de todos modos, así que lo limpio es \`create-drop\`. Con una base **en archivo** (el cuaderno) los datos sí sobreviven, y ahí \`update\` tiene sentido.
 
 \`\`\`properties
 spring.jpa.show-sql=true
-spring.jpa.hibernate.ddl-auto=update
-\`\`\``,
+spring.jpa.hibernate.ddl-auto=create-drop
+\`\`\`
+
+Ojo: si una clave aparece **dos veces** en el archivo, gana la **última**. Por eso hay que cambiar la línea que ya existe, no añadir otra.`,
       challenges: [
         {
           id: 'm02-l3-c1',
@@ -422,36 +432,36 @@ spring.jpa.hibernate.ddl-auto=update
         },
         {
           id: 'm02-l3-c2',
-          title: 'No pierdas los datos: ddl-auto update',
-          instructions: `Ahora el archivo trae \`spring.jpa.hibernate.ddl-auto=create\`, que **borra las tablas** en cada arranque. Queremos conservar lo guardado y solo añadir lo que falte.
+          title: 'Base en memoria: ddl-auto create-drop',
+          instructions: `Nuestra base es **en memoria** (la pizarra): al apagar la aplicación se borra todo. Por eso \`update\`, que sirve para conservar datos, no tiene sentido aquí. Lo limpio es que las tablas se creen al arrancar y se borren al apagar.
 
-Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
+Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **create-drop**.`,
           files: proyecto({
-            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=create'),
+            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=update'),
           }),
           activeFile: PROPS,
           hints: [
             'Busca la línea spring.jpa.hibernate.ddl-auto, la última del archivo.',
-            'Solo cambia la palabra después del =. Los valores posibles son create, create-drop, update y none.',
-            'La línea queda: spring.jpa.hibernate.ddl-auto=update',
+            'Solo cambia la palabra después del =. Piensa: la base es una pizarra, se borra al apagar.',
+            'La línea queda: spring.jpa.hibernate.ddl-auto=create-drop',
           ],
           solution: {
-            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=update'),
+            [PROPS]: props(NOMBRE, PUERTO, URL, USUARIO, CLAVE, ...CONSOLA, SQL, 'spring.jpa.hibernate.ddl-auto=create-drop'),
           },
           checks: [
             {
               type: 'file-includes',
               path: PROPS,
-              pattern: linea('spring.jpa.hibernate.ddl-auto', 'update'),
-              label: 'ddl-auto vale update',
-              message: 'Falta la línea spring.jpa.hibernate.ddl-auto=update.',
+              pattern: linea('spring.jpa.hibernate.ddl-auto', 'create-drop'),
+              label: 'ddl-auto vale create-drop',
+              message: 'Falta la línea spring.jpa.hibernate.ddl-auto=create-drop.',
             },
             {
               type: 'file-excludes',
               path: PROPS,
-              pattern: linea('spring.jpa.hibernate.ddl-auto', 'create(-drop)?'),
-              label: 'Ya no queda create ni create-drop',
-              message: 'Todavía hay un ddl-auto=create (o create-drop): borra las tablas en cada arranque. Cámbialo a update.',
+              pattern: linea('spring.jpa.hibernate.ddl-auto', '(update|create|none|validate)'),
+              label: 'Ya no queda otro valor de ddl-auto',
+              message: 'Todavía hay un ddl-auto con otro valor (update, create...). Con la base en memoria debe quedar solo create-drop.',
             },
           ],
           xp: 10,
@@ -463,31 +473,33 @@ Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
 
 - \`spring.application.name\` = **biblioteca**
 - \`server.port\` = **8082**
-- \`spring.datasource.url\` = **jdbc:h2:mem:biblioteca**
+- \`spring.datasource.url\` = **jdbc:h2:file:./data/biblioteca** (esta vez la base es un cuaderno en archivo)
 - \`spring.datasource.username\` = **sa**
 - \`spring.datasource.password\` = **\${DB_PASSWORD:}**
 - \`spring.h2.console.enabled\` = **true**
 - \`spring.h2.console.path\` = **/h2-console**
 - \`spring.jpa.show-sql\` = **true**
-- \`spring.jpa.hibernate.ddl-auto\` = **create-drop** (la base está en memoria, se borra al apagar)`,
+- \`spring.jpa.hibernate.ddl-auto\` = **update** (como la base está en archivo, los datos sobreviven y \`update\` los conserva)
+
+Si una clave se repite, gana la última: en este reto no dejes líneas viejas (como otro puerto u otro \`ddl-auto\`).`,
           files: proyecto({ [PROPS]: '# Configuración de la Biblioteca: escribe aquí los ajustes\n' }),
           activeFile: PROPS,
           hints: [
             'Son nueve líneas con el formato clave=valor. Ve una por una, tachando la lista.',
             'Las claves empiezan por spring.application, server, spring.datasource (3), spring.h2.console (2) y spring.jpa (2).',
-            'Copia las líneas de lo que hiciste en los retos anteriores; solo cambian el puerto (8082) y ddl-auto (create-drop).',
+            'Copia las líneas de los retos anteriores; cambian el puerto (8082), la url (jdbc:h2:file:./data/biblioteca) y ddl-auto (update).',
           ],
           solution: {
             [PROPS]: props(
               '# Configuración de la Biblioteca',
               NOMBRE,
               'server.port=8082',
-              URL,
+              URL_ARCHIVO,
               USUARIO,
               CLAVE,
               ...CONSOLA,
               SQL,
-              'spring.jpa.hibernate.ddl-auto=create-drop',
+              'spring.jpa.hibernate.ddl-auto=update',
             ),
           },
           checks: [
@@ -508,9 +520,16 @@ Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
             {
               type: 'file-includes',
               path: PROPS,
-              pattern: linea('spring.datasource.url', 'jdbc:h2:mem:biblioteca'),
-              label: 'spring.datasource.url=jdbc:h2:mem:biblioteca',
-              message: 'Falta spring.datasource.url=jdbc:h2:mem:biblioteca.',
+              pattern: linea('spring.datasource.url', 'jdbc:h2:file:\\./data/biblioteca'),
+              label: 'spring.datasource.url=jdbc:h2:file:./data/biblioteca',
+              message: 'Falta spring.datasource.url=jdbc:h2:file:./data/biblioteca.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.url', 'jdbc:h2:mem\\S*'),
+              label: 'La base ya no es en memoria',
+              message: 'Queda una url jdbc:h2:mem: (pizarra). En este reto la base es en archivo: jdbc:h2:file:./data/biblioteca.',
             },
             {
               type: 'file-includes',
@@ -522,7 +541,7 @@ Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
             {
               type: 'file-includes',
               path: PROPS,
-              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]*\\}'),
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:\\}'),
               label: 'spring.datasource.password=${DB_PASSWORD:}',
               message: 'Falta spring.datasource.password=${DB_PASSWORD:}.',
             },
@@ -550,9 +569,30 @@ Cambia el valor de \`spring.jpa.hibernate.ddl-auto\` a **update**.`,
             {
               type: 'file-includes',
               path: PROPS,
-              pattern: linea('spring.jpa.hibernate.ddl-auto', 'create-drop'),
-              label: 'spring.jpa.hibernate.ddl-auto=create-drop',
-              message: 'Falta spring.jpa.hibernate.ddl-auto=create-drop.',
+              pattern: linea('spring.jpa.hibernate.ddl-auto', 'update'),
+              label: 'spring.jpa.hibernate.ddl-auto=update',
+              message: 'Falta spring.jpa.hibernate.ddl-auto=update.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.jpa.hibernate.ddl-auto', '(?!update[ \\t]*(\\r?\\n|$))\\S+'),
+              label: 'No queda otro ddl-auto repetido',
+              message: 'Hay otra línea de ddl-auto con un valor distinto de update. Deja solo una: spring.jpa.hibernate.ddl-auto=update.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('server.port', '(?!8082[ \\t]*(\\r?\\n|$))\\S+'),
+              label: 'No queda otro server.port repetido',
+              message: 'Hay otra línea de server.port con un valor distinto de 8082. Deja solo server.port=8082.',
+            },
+            {
+              type: 'file-excludes',
+              path: PROPS,
+              pattern: linea('spring.datasource.password', '\\$\\{DB_PASSWORD:[^}\\s]+\\}'),
+              label: 'El valor por defecto de la contraseña está vacío',
+              message: 'Después de los dos puntos no debe haber nada: ${DB_PASSWORD:}.',
             },
             {
               type: 'file-excludes',

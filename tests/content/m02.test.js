@@ -76,16 +76,15 @@ describe('módulo m02 Configuración (Spring Boot)', () => {
     expect(fallan(reto('m02-l1-c2'), 'spring.application.name=biblioteca\n  server.port=8081  \n')).toEqual([])
     expect(fallan(reto('m02-l2-c1'), 'spring.datasource.url = jdbc:h2:mem:biblioteca\nspring.datasource.username = sa\n')).toEqual([])
     expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password = ${DB_PASSWORD:}\n')).toEqual([])
-    expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password=${DB_PASSWORD:secreta}')).toEqual([])
     expect(fallan(reto('m02-l3-c1'), 'spring.jpa.show-sql = true')).toEqual([])
-    expect(fallan(reto('m02-l3-c2'), 'spring.jpa.hibernate.ddl-auto = update\n')).toEqual([])
+    expect(fallan(reto('m02-l3-c2'), 'spring.jpa.hibernate.ddl-auto = create-drop\n')).toEqual([])
   })
 
   it('un comentario con la respuesta no pasa el check', () => {
     expect(fallan(reto('m02-l1-c2'), '# server.port=8081\nserver.port=8080\n')).not.toEqual([])
     expect(fallan(reto('m02-l1-c1'), '# spring.application.name=biblioteca\n')).not.toEqual([])
     expect(fallan(reto('m02-l3-c1'), '#spring.jpa.show-sql=true\n')).not.toEqual([])
-    expect(fallan(reto('m02-l3-c2'), '# spring.jpa.hibernate.ddl-auto=update\n')).not.toEqual([])
+    expect(fallan(reto('m02-l3-c2'), '# spring.jpa.hibernate.ddl-auto=create-drop\nspring.jpa.hibernate.ddl-auto=update\n')).not.toEqual([])
   })
 
   it('detecta errores típicos de clase', () => {
@@ -97,8 +96,11 @@ describe('módulo m02 Configuración (Spring Boot)', () => {
     expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password=12345\n')).not.toEqual([])
     // consola desactivada
     expect(fallan(reto('m02-l2-c3'), 'spring.h2.console.enabled=false\nspring.h2.console.path=/h2-console\n')).not.toEqual([])
-    // ddl-auto create-drop en vez de update
-    expect(fallan(reto('m02-l3-c2'), 'spring.jpa.hibernate.ddl-auto=create-drop\n')).not.toEqual([])
+    // contraseña con valor por defecto que no está vacío
+    expect(fallan(reto('m02-l2-c2'), 'spring.datasource.password=${DB_PASSWORD:secreta}\n')).toContain('El valor por defecto de la contraseña está vacío')
+    // ddl-auto update (o create) en vez de create-drop con la base en memoria
+    expect(fallan(reto('m02-l3-c2'), 'spring.jpa.hibernate.ddl-auto=update\n')).not.toEqual([])
+    expect(fallan(reto('m02-l3-c2'), 'spring.jpa.hibernate.ddl-auto=create\n')).not.toEqual([])
     // show-sql en false
     expect(fallan(reto('m02-l3-c1'), 'spring.jpa.show-sql=false\n')).not.toEqual([])
   })
@@ -106,6 +108,15 @@ describe('módulo m02 Configuración (Spring Boot)', () => {
   it('el reto final exige toda la configuración', () => {
     const c = reto('m02-l3-c3')
     expect(fallan(c, '# vacío\n').length).toBeGreaterThanOrEqual(7)
+    const buena = c.solution[PROPS]
+    expect(fallan(c, buena)).toEqual([])
+    // base en archivo con update; claves viejas repetidas o url en memoria fallan
+    expect(buena).toMatch(/jdbc:h2:file:\.\/data\/biblioteca/)
+    expect(buena).toMatch(/ddl-auto=update/)
+    expect(fallan(c, buena + 'server.port=8081\n')).not.toEqual([])
+    expect(fallan(c, buena + 'spring.jpa.hibernate.ddl-auto=create-drop\n')).not.toEqual([])
+    expect(fallan(c, buena.replace('jdbc:h2:file:./data/biblioteca', 'jdbc:h2:mem:biblioteca'))).not.toEqual([])
+    expect(fallan(c, buena.replace('${DB_PASSWORD:}', '${DB_PASSWORD:secreta}'))).not.toEqual([])
   })
 
   it('el pom.xml es el pom.xml base de docs/temario.md', () => {
