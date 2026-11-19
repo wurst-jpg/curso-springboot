@@ -1,0 +1,327 @@
+import { readFileSync } from 'node:fs'
+import course from '../../src/content/course.js'
+
+const modulo = course.find((m) => m.id === 'm07')
+const retos = modulo ? modulo.lessons.flatMap((l) => l.challenges) : []
+
+const REPOS = '/src/main/java/com/biblioteca/repositories'
+const LIBRO_REPO = `${REPOS}/ILibroRepositorio.java`
+const SOCIO_REPO = `${REPOS}/ISocioRepositorio.java`
+const PRESTAMO_REPO = `${REPOS}/IPrestamoRepositorio.java`
+
+// ¿Pasa este check con estos archivos? (solo los de archivos; manual cuenta como pasado)
+function pasa(check, files) {
+  const textos = check.path ? (check.path in files ? [files[check.path]] : null) : Object.values(files)
+  const re = new RegExp(check.pattern)
+  if (check.type === 'file-exists') return Object.keys(files).some((p) => re.test(p))
+  if (check.type === 'file-includes') return !!textos && textos.some((t) => re.test(t))
+  if (check.type === 'file-excludes') return !!textos && !textos.some((t) => re.test(t))
+  return true
+}
+
+const reto = (id) => {
+  const c = retos.find((r) => r.id === id)
+  if (!c) throw new Error(`No existe el reto ${id}`)
+  return c
+}
+// Archivos como quedan al terminar el reto (iniciales + solución), con cambios opcionales.
+const resuelto = (c, cambios = {}) => ({ ...c.files, ...c.solution, ...cambios })
+const fallan = (c, files) => c.checks.filter((k) => !pasa(k, files))
+const mensajesQueFallan = (c, files) => fallan(c, files).map((k) => k.message)
+// Cambia un trozo de la solución (y comprueba que el trozo estaba, para no probar en vano).
+function variar(c, path, de, a) {
+  const texto = resuelto(c)[path]
+  expect(texto, `${c.id}: ${path}`).toBeDefined()
+  expect(texto.includes(de), `${c.id}: la solución de ${path} debería contener "${de}"`).toBe(true)
+  return resuelto(c, { [path]: texto.replace(de, a) })
+}
+
+describe('módulo m07 Consultas por nombre (Spring Boot)', () => {
+  it('existe con título y resumen', () => {
+    expect(modulo.title).toBe('Consultas por nombre')
+    expect(modulo.summary.length).toBeGreaterThan(10)
+  })
+
+  it('cada lección explica y cada reto tiene 3 pistas, solución, xp 10 y checks con label y message', () => {
+    modulo.lessons.forEach((l) => {
+      expect(l.explanation.length, l.id).toBeGreaterThan(40)
+      expect(l.challenges.length, l.id).toBeGreaterThanOrEqual(2)
+      expect(l.challenges.length, l.id).toBeLessThanOrEqual(3)
+      l.challenges.forEach((c) => {
+        expect(c.title, c.id).toBeTruthy()
+        expect(c.instructions.length, c.id).toBeGreaterThan(20)
+        expect(c.hints, c.id).toHaveLength(3)
+        expect(c.xp, c.id).toBe(10)
+        expect(Object.keys(c.solution).length, c.id).toBeGreaterThan(0)
+        expect(c.files[c.activeFile], c.id).toBeDefined()
+        expect(c.files['/package.json'], c.id).toBeUndefined()
+        c.checks.forEach((k) => {
+          expect(k.label, c.id).toBeTruthy()
+          if (k.type !== 'manual') expect(k.message, `${c.id}: ${k.label}`).toBeTruthy()
+        })
+      })
+    })
+  })
+
+  it('la solución de cada reto pasa todos sus checks', () => {
+    retos.forEach((c) => {
+      expect(fallan(c, resuelto(c)).map((k) => k.label), c.id).toEqual([])
+    })
+  })
+
+  it('ningún reto viene resuelto de inicio: los archivos iniciales fallan algún check', () => {
+    retos.forEach((c) => {
+      expect(fallan(c, c.files).length, c.id).toBeGreaterThan(0)
+    })
+  })
+
+  it('el pom.xml es el pom.xml base de docs/temario.md', () => {
+    const doc = readFileSync('docs/temario.md', 'utf8')
+    const base = doc.match(/```xml\n([\s\S]*?)```/)[1]
+    retos.forEach((c) => {
+      expect(c.files['/pom.xml'], c.id).toBe(base)
+      if ('/pom.xml' in c.solution) expect(c.solution['/pom.xml'], c.id).toBe(base)
+    })
+  })
+
+  it('los repositorios de inicio son los de m06 (con @Repository y JpaRepository<Entidad, UUID>)', () => {
+    retos.forEach((c) => {
+      Object.entries(c.files)
+        .filter(([p]) => p.startsWith(REPOS))
+        .forEach(([p, texto]) => {
+          expect(texto, `${c.id} ${p}`).toMatch(/@Repository\npublic interface I(\w+)Repositorio extends JpaRepository<\1, UUID>/)
+        })
+    })
+  })
+
+  it('usa jakarta.persistence y nunca javax.persistence', () => {
+    expect(JSON.stringify(modulo)).not.toMatch(/javax\.persistence/)
+  })
+
+  it('no usa conceptos de módulos posteriores (servicios, controladores, validaciones)', () => {
+    const todo = JSON.stringify(modulo)
+    expect(todo).not.toMatch(/@Service|@Autowired|@RestController|@Controller|@GetMapping|@PostMapping|ResponseEntity|@Valid\b|@Transactional|@Modifying|nativeQuery/)
+  })
+
+  it('@Query solo aparece en el reto extra de @Query (y en la lección que lo explica)', () => {
+    retos
+      .filter((c) => c.id !== 'm07-l3-c2')
+      .forEach((c) => expect(JSON.stringify([c.files, c.solution, c.instructions, c.hints]), c.id).not.toMatch(/@Query/))
+  })
+
+  describe('lección 1: findBy', () => {
+    it('findByIsbn: tolera espacios, public, sin punto y coma e import con asterisco', () => {
+      const c = reto('m07-l1-c1')
+      const texto = resuelto(c)[LIBRO_REPO]
+        .replace('Optional<Libro> findByIsbn(String isbn);', 'public Optional < Libro >  findByIsbn( String   codigo )')
+        .replace('import java.util.Optional;', 'import java.util.*;')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('findByIsbn: un comentario con la respuesta no basta', () => {
+      const c = reto('m07-l1-c1')
+      const comentado = variar(c, LIBRO_REPO, 'Optional<Libro> findByIsbn(String isbn);', '// Optional<Libro> findByIsbn(String isbn);')
+      expect(mensajesQueFallan(c, comentado)).toEqual([expect.stringMatching(/Optional<Libro> findByIsbn\(String isbn\)/)])
+    })
+
+    it('findByIsbn: detecta la lista en vez de Optional y el nombre ISBN en mayúsculas', () => {
+      const c = reto('m07-l1-c1')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'Optional<Libro> findByIsbn', 'List<Libro> findByIsbn'))).toContainEqual(
+        expect.stringMatching(/único/),
+      )
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByIsbn', 'findByISBN'))).toContainEqual(expect.stringMatching(/se llama isbn/))
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'import java.util.Optional;\n', ''))).toEqual([
+        expect.stringMatching(/import java\.util\.Optional/),
+      ])
+    })
+
+    it('findByCorreo: detecta findByEmail (el campo se llama correo)', () => {
+      const c = reto('m07-l1-c2')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'findByCorreo', 'findByEmail'))).toContainEqual(expect.stringMatching(/se llama correo/))
+    })
+
+    it('findByCategoria: detecta el String donde va el enum (error de clase)', () => {
+      const c = reto('m07-l1-c3')
+      const msgs = mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByCategoria(CategoriaLibro categoria)', 'findByCategoria(String categoria)'))
+      expect(msgs).toContainEqual(expect.stringMatching(/enum CategoriaLibro, no String/))
+    })
+
+    it('findByCategoria: detecta Optional (hay muchos libros por categoría) y que falte el import del enum', () => {
+      const c = reto('m07-l1-c3')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'List<Libro> findByCategoria', 'Optional<Libro> findByCategoria'))).toContainEqual(
+        expect.stringMatching(/lista/),
+      )
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'import com.biblioteca.models.helpers.CategoriaLibro;\n', ''))).toEqual([
+        expect.stringMatching(/import com\.biblioteca\.models\.helpers\.CategoriaLibro/),
+      ])
+    })
+
+    it('findByCategoria: conserva findByIsbn del reto anterior', () => {
+      const c = reto('m07-l1-c3')
+      expect(c.files[LIBRO_REPO]).toMatch(/Optional<Libro> findByIsbn\(String isbn\);/)
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '  Optional<Libro> findByIsbn(String isbn);\n', ''))).toContainEqual(
+        expect.stringMatching(/findByIsbn/),
+      )
+    })
+  })
+  describe('lección 2: And, OrderBy y Containing', () => {
+    it('findByCategoriaAndAutor: tolera saltos de línea entre parámetros', () => {
+      const c = reto('m07-l2-c1')
+      const texto = resuelto(c)[LIBRO_REPO].replace('(CategoriaLibro categoria, String autor)', '(\n      CategoriaLibro cat,\n      String nombreAutor\n  )')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('findByCategoriaAndAutor: detecta String para el enum y los parámetros al revés', () => {
+      const c = reto('m07-l2-c1')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByCategoriaAndAutor(CategoriaLibro categoria', 'findByCategoriaAndAutor(String categoria'))).toContainEqual(
+        expect.stringMatching(/enum CategoriaLibro, no String/),
+      )
+      expect(
+        mensajesQueFallan(c, variar(c, LIBRO_REPO, '(CategoriaLibro categoria, String autor)', '(String autor, CategoriaLibro categoria)')),
+      ).toContainEqual(expect.stringMatching(/mismo orden/))
+    })
+
+    it('findByTipoOrderByNombreAsc: detecta String tipo (error de clase) y AndOrderBy', () => {
+      const c = reto('m07-l2-c2')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, '(TipoSocio tipo)', '(String tipo)'))).toContainEqual(
+        expect.stringMatching(/enum TipoSocio, no String/),
+      )
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'findByTipoOrderBy', 'findByTipoAndOrderBy'))).toContainEqual(
+        expect.stringMatching(/sin And/),
+      )
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'import com.biblioteca.models.helpers.TipoSocio;\n', ''))).toEqual([
+        expect.stringMatching(/import com\.biblioteca\.models\.helpers\.TipoSocio/),
+      ])
+    })
+
+    it('findByTipoOrderByNombreAsc: conserva findByCorreo', () => {
+      const c = reto('m07-l2-c2')
+      expect(c.files[SOCIO_REPO]).toMatch(/Optional<Socio> findByCorreo\(String correo\);/)
+    })
+
+    it('findByTituloContainingIgnoreCase: detecta findByTitle y la tilde en Título', () => {
+      const c = reto('m07-l2-c3')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByTitulo', 'findByTitle'))).toContainEqual(expect.stringMatching(/se llama titulo/))
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'findByTitulo', 'findByTítulo'))).toContainEqual(expect.stringMatching(/sin tilde/))
+    })
+
+    it('findByTituloContainingIgnoreCase: los métodos anteriores siguen ahí', () => {
+      const c = reto('m07-l2-c3')
+      ;['findByIsbn', 'findByCategoria(', 'findByCategoriaAndAutor'].forEach((m) => expect(c.files[LIBRO_REPO], m).toContain(m))
+    })
+  })
+  describe('lección 3: existsBy, countBy y @Query', () => {
+    it('existsByCorreo: detecta existByCorreo sin la s (error de clase)', () => {
+      const c = reto('m07-l3-c1')
+      const msgs = mensajesQueFallan(c, variar(c, SOCIO_REPO, 'existsByCorreo', 'existByCorreo'))
+      expect(msgs).toContainEqual(expect.stringMatching(/con s/))
+    })
+
+    it('existsByCorreo: Boolean también vale (aunque se prefiere boolean)', () => {
+      const c = reto('m07-l3-c1')
+      expect(fallan(c, variar(c, SOCIO_REPO, 'boolean existsByCorreo', 'Boolean existsByCorreo')).map((k) => k.label)).toEqual([])
+      expect(fallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'Long countByTipo')).map((k) => k.label)).toEqual([])
+    })
+
+    it('countByTipo: detecta int en vez de long y String en vez del enum', () => {
+      const c = reto('m07-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'int countByTipo'))).toContainEqual(expect.stringMatching(/long/))
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'countByTipo(TipoSocio tipo)', 'countByTipo(String tipo)'))).toContainEqual(
+        expect.stringMatching(/enum TipoSocio, no String/),
+      )
+    })
+
+    it('@Query: tolera minúsculas en SELECT/FROM/WHERE, otro alias y espacios', () => {
+      const c = reto('m07-l3-c2')
+      const texto = resuelto(c)[LIBRO_REPO].replace(
+        '@Query("SELECT l FROM Libro l WHERE l.autor = :autor")\n  List<Libro>',
+        '@Query( "select lib from Libro lib where lib.autor=:autor" )\n\n  public List<Libro>',
+      )
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('@Query: detecta el nombre de la tabla en vez de la entidad y @Param distinto de :autor', () => {
+      const c = reto('m07-l3-c2')
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, 'FROM Libro l', 'FROM libros l'))).toContainEqual(expect.stringMatching(/no el de la tabla/))
+      expect(mensajesQueFallan(c, variar(c, LIBRO_REPO, '@Param("autor")', '@Param("nombre")'))).toContainEqual(expect.stringMatching(/igual/))
+    })
+
+    it('@Query: comentada no cuenta', () => {
+      const c = reto('m07-l3-c2')
+      const comentado = variar(c, LIBRO_REPO, '  @Query(', '  // @Query(')
+      expect(fallan(c, comentado).length).toBeGreaterThan(0)
+    })
+
+    it('reto final: IPrestamoRepositorio junta OrderBy, countBy y existsBy con una entidad como parámetro', () => {
+      const c = reto('m07-l3-c3')
+      const sol = c.solution[PRESTAMO_REPO]
+      expect(sol).toMatch(/OrderBy/)
+      expect(sol).toMatch(/countBy/)
+      expect(sol).toMatch(/existsBy\w*And/)
+    })
+
+    it('reto final: detecta existBy sin s, el id en vez de Libro, OrderByFecha y int', () => {
+      const c = reto('m07-l3-c3')
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'existsByLibro', 'existByLibro'))).toContainEqual(expect.stringMatching(/con s/))
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, '(Libro libro, boolean devuelto)', '(UUID libro, boolean devuelto)'))).toContainEqual(
+        expect.stringMatching(/es un Libro/),
+      )
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'OrderByFechaPrestamoAsc', 'OrderByFechaAsc'))).toContainEqual(
+        expect.stringMatching(/fechaPrestamo/),
+      )
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'long countByDevuelto', 'int countByDevuelto'))).toContainEqual(expect.stringMatching(/long/))
+      expect(mensajesQueFallan(c, variar(c, PRESTAMO_REPO, 'countByDevuelto(boolean', 'countByDevuelto(String'))).toContainEqual(
+        expect.stringMatching(/devuelto es boolean/),
+      )
+    })
+  })
+
+  it('tiene 3 lecciones y 9 retos', () => {
+    expect(modulo.lessons.map((l) => l.id)).toEqual(['m07-l1', 'm07-l2', 'm07-l3'])
+    expect(retos).toHaveLength(9)
+  })
+  describe('correcciones de la revisión', () => {
+    it('acepta java.util.UUID escrito completo en la línea de la interface', () => {
+      const c = reto('m07-l1-c1')
+      const texto = resuelto(c)[LIBRO_REPO].replace('<Libro, UUID>', '<Libro, java.util.UUID>')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('@Query acepta FROM Libro AS l', () => {
+      const c = reto('m07-l3-c2')
+      const texto = resuelto(c)[LIBRO_REPO].replace('FROM Libro l', 'FROM Libro AS l')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('el mensaje de int en countBy dice que en clase usamos long', () => {
+      const c = reto('m07-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'int countByTipo'))).toContainEqual(
+        expect.stringMatching(/en clase usamos long, igual que count\(\)/),
+      )
+    })
+  })
+
+  it('las entidades de inicio son las canónicas de m03-m05', () => {
+    retos.forEach((c) => {
+      const libro = c.files['/src/main/java/com/biblioteca/models/Libro.java']
+      const socio = c.files['/src/main/java/com/biblioteca/models/Socio.java']
+      const prestamo = c.files['/src/main/java/com/biblioteca/models/Prestamo.java']
+      if (libro) {
+        expect(libro, c.id).toContain('@JsonManagedReference(value = "libro-prestamo")')
+        expect(libro, c.id).toContain('@Column(name = "nombre_autor", nullable = false, length = 100)\n  private String autor;')
+      }
+      if (socio) {
+        expect(socio, c.id).toContain('@JsonManagedReference(value = "socio-prestamo")')
+        expect(socio, c.id).toContain('@Column(nullable = false, length = 20)\n  private TipoSocio tipo;')
+      }
+      if (prestamo) {
+        expect(prestamo, c.id).toContain('@JsonBackReference(value = "libro-prestamo")\n  @ManyToOne\n  @JoinColumn(name = "libro_id")\n  private Libro libro;')
+        expect(prestamo, c.id).toContain('@Column(nullable = false)\n  private LocalDate fechaPrestamo;')
+      }
+    })
+  })
+
+  it('usa español de Colombia', () => {
+    expect(JSON.stringify(modulo)).not.toMatch(/ordenador|fichero|pegatina|\bvalen?\b|coger|móvil|vosotros/i)
+  })
+})
