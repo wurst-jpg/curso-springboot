@@ -10,6 +10,167 @@ const LIBRO = `${M}Libro.java`
 const SOCIO = `${M}Socio.java`
 const PRESTAMO = `${M}Prestamo.java`
 
+// Libro, Socio y los enums tal como quedan al final de m04 (solución de m04-l3-c2). m05 parte de ellos.
+const LIBRO_M04 = `package com.biblioteca.models;
+
+import java.util.UUID;
+
+import com.biblioteca.models.helpers.CategoriaLibro;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "libros")
+public class Libro {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
+
+  @Column(nullable = false, length = 150)
+  private String titulo;
+
+  @Column(nullable = false, unique = true, length = 20)
+  private String isbn;
+
+  @Column(name = "nombre_autor", nullable = false, length = 100)
+  private String autor;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private CategoriaLibro categoria;
+
+  public Libro() {
+  }
+
+  public Libro(String titulo, String isbn, String autor) {
+    this.titulo = titulo;
+    this.isbn = isbn;
+    this.autor = autor;
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getTitulo() {
+    return titulo;
+  }
+
+  public void setTitulo(String titulo) {
+    this.titulo = titulo;
+  }
+
+  public String getIsbn() {
+    return isbn;
+  }
+
+  public void setIsbn(String isbn) {
+    this.isbn = isbn;
+  }
+
+  public String getAutor() {
+    return autor;
+  }
+
+  public void setAutor(String autor) {
+    this.autor = autor;
+  }
+
+  public CategoriaLibro getCategoria() {
+    return categoria;
+  }
+
+  public void setCategoria(CategoriaLibro categoria) {
+    this.categoria = categoria;
+  }
+}
+`
+const SOCIO_M04 = `package com.biblioteca.models;
+
+import java.util.UUID;
+
+import com.biblioteca.models.helpers.TipoSocio;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "socios")
+public class Socio {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
+
+  @Column(nullable = false, length = 100)
+  private String nombre;
+
+  @Column(nullable = false, unique = true, length = 150)
+  private String correo;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private TipoSocio tipo;
+
+  public Socio() {
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getNombre() {
+    return nombre;
+  }
+
+  public void setNombre(String nombre) {
+    this.nombre = nombre;
+  }
+
+  public String getCorreo() {
+    return correo;
+  }
+
+  public void setCorreo(String correo) {
+    this.correo = correo;
+  }
+
+  public TipoSocio getTipo() {
+    return tipo;
+  }
+
+  public void setTipo(TipoSocio tipo) {
+    this.tipo = tipo;
+  }
+}
+`
+const CATEGORIA_M04 = `package com.biblioteca.models.helpers;
+
+public enum CategoriaLibro {
+  NOVELA, CIENCIA, HISTORIA, INFANTIL
+}
+`
+const TIPO_M04 = `package com.biblioteca.models.helpers;
+
+public enum TipoSocio {
+  ESTUDIANTE, DOCENTE, EXTERNO
+}
+`
+
 // ¿Pasa este check con estos archivos? (solo los de archivos; manual cuenta como pasado)
 function pasa(check, files) {
   const textos = check.path ? (check.path in files ? [files[check.path]] : null) : Object.values(files)
@@ -313,6 +474,53 @@ describe('módulo m05 Relaciones (Spring Boot)', () => {
       expect(l3).toMatch(/da error al recibir datos/)
       expect(l3).toMatch(/JSON de un préstamo no mostrará su libro ni su socio[\s\S]*se resolverá más adelante/)
       expect(modulo.lessons[0].explanation).not.toMatch(/no podría ordenar/)
+    })
+  })
+
+  describe('coherencia con el final de m04', () => {
+    const CAT = `${M}helpers/CategoriaLibro.java`
+    const TIP = `${M}helpers/TipoSocio.java`
+
+    it('los archivos de inicio de m05-l1-c1 son exactamente los de m04', () => {
+      const c = reto('m05-l1-c1')
+      expect(c.files[LIBRO]).toBe(LIBRO_M04)
+      expect(c.files[SOCIO]).toBe(SOCIO_M04)
+      expect(c.files[CAT]).toBe(CATEGORIA_M04)
+      expect(c.files[TIP]).toBe(TIPO_M04)
+    })
+
+    it('si m04 está en el curso, coincide con su solución final', () => {
+      const m04 = course.find((m) => m.id === 'm04')
+      if (!m04) return
+      const fin = m04.lessons.flatMap((l) => l.challenges).find((c) => c.id === 'm04-l3-c2')
+      const c = reto('m05-l1-c1')
+      expect(c.files[LIBRO]).toBe({ ...fin.files, ...fin.solution }[LIBRO])
+      expect(c.files[SOCIO]).toBe({ ...fin.files, ...fin.solution }[SOCIO])
+    })
+
+    it('en todo el módulo, Libro y Socio conservan lo de m04 y los enums no cambian', () => {
+      // Las relaciones solo añaden líneas: quitar las añadidas debe devolver el texto de m04.
+      const quitar = (t) =>
+        t
+          .replace(/import com\.fasterxml\.jackson\.annotation\.\w+;\n/g, '')
+          .replace(/import jakarta\.persistence\.OneToMany;\n/g, '')
+          .replace(/import java\.util\.(?:ArrayList|List);\n/g, '')
+          .replace(/\n {2}@OneToMany\([^)]*\)\n(?: {2}@Json\w+\([^)]*\)\n)? {2}private List<Prestamo> prestamos = new ArrayList<>\(\);\n/g, '')
+          .replace(/\n {2}public List<Prestamo> getPrestamos\(\) \{\n {4}return prestamos;\n {2}\}\n\n {2}public void setPrestamos\(List<Prestamo> prestamos\) \{\n {4}this\.prestamos = prestamos;\n {2}\}\n/g, '')
+      retos.forEach((c) => {
+        ;[c.files, { ...c.files, ...c.solution }].forEach((files, i) => {
+          const cual = i === 0 ? 'inicio' : 'solución'
+          expect(quitar(files[LIBRO]), `${c.id} Libro (${cual})`).toBe(LIBRO_M04)
+          expect(quitar(files[SOCIO]), `${c.id} Socio (${cual})`).toBe(SOCIO_M04)
+          expect(files[CAT], `${c.id} (${cual})`).toBe(CATEGORIA_M04)
+          expect(files[TIP], `${c.id} (${cual})`).toBe(TIPO_M04)
+        })
+      })
+    })
+
+    it('usa español de Colombia (sin palabras de España)', () => {
+      const todo = JSON.stringify(modulo)
+      expect(todo).not.toMatch(/ordenador|fichero|pegatina|\bvale\b|\bcoger\b|móvil|vosotros|vuestr|[Aa]ñade/)
     })
   })
 

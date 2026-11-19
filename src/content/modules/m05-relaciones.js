@@ -96,95 +96,189 @@ const gs = (tipo, campo) => {
 `
 }
 
+// Libro, Socio y los enums: el MISMO texto con el que termina m04 (solución de m04-l3-c2).
+// m05 solo les agrega líneas (la lista de préstamos y sus import); un test lo comprueba.
 const CATEGORIA_JAVA = `package com.biblioteca.models.helpers;
 
 public enum CategoriaLibro {
-  NOVELA,
-  CIENCIA,
-  HISTORIA,
-  INFANTIL
+  NOVELA, CIENCIA, HISTORIA, INFANTIL
 }
 `
 
 const TIPO_JAVA = `package com.biblioteca.models.helpers;
 
 public enum TipoSocio {
-  ESTUDIANTE,
-  DOCENTE,
-  EXTERNO
+  ESTUDIANTE, DOCENTE, EXTERNO
 }
 `
 
-// Lado "uno" de la relación (Libro o Socio). `mappedBy`: null (sin lista) o el texto de mappedBy.
-const ladoUno = ({ clase, tabla, enumImport, campos, mappedBy = null, json = null }) => {
-  const conLista = mappedBy !== null
-  const imports = [
-    ...(json ? ['import com.fasterxml.jackson.annotation.JsonManagedReference;'] : []),
-    enumImport,
-    'import jakarta.persistence.Column;',
-    'import jakarta.persistence.Entity;',
-    'import jakarta.persistence.EnumType;',
-    'import jakarta.persistence.Enumerated;',
-    'import jakarta.persistence.GeneratedValue;',
-    'import jakarta.persistence.GenerationType;',
-    'import jakarta.persistence.Id;',
-    ...(conLista ? ['import jakarta.persistence.OneToMany;'] : []),
-    'import jakarta.persistence.Table;',
-    ...(conLista ? ['import java.util.ArrayList;', 'import java.util.List;'] : []),
-    'import java.util.UUID;',
-  ].join('\n')
-  const lista = conLista
-    ? `
-  @OneToMany(mappedBy = "${mappedBy}")
-${json ? `  @JsonManagedReference(value = "${json}")\n` : ''}  private List<Prestamo> prestamos = new ArrayList<>();
-`
-    : ''
-  return `package com.biblioteca.models;
+const LIBRO_M04 = `package com.biblioteca.models;
 
-${imports}
+import java.util.UUID;
+
+import com.biblioteca.models.helpers.CategoriaLibro;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "${tabla}")
-public class ${clase} {
+@Table(name = "libros")
+public class Libro {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
-${campos.map((c) => c.texto).join('')}${lista}
-  public ${clase}() {
+
+  @Column(nullable = false, length = 150)
+  private String titulo;
+
+  @Column(nullable = false, unique = true, length = 20)
+  private String isbn;
+
+  @Column(name = "nombre_autor", nullable = false, length = 100)
+  private String autor;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private CategoriaLibro categoria;
+
+  public Libro() {
   }
-${gs('UUID', 'id')}${campos.map((c) => gs(c.tipo, c.nombre)).join('')}${conLista ? gs('List<Prestamo>', 'prestamos') : ''}}
+
+  public Libro(String titulo, String isbn, String autor) {
+    this.titulo = titulo;
+    this.isbn = isbn;
+    this.autor = autor;
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getTitulo() {
+    return titulo;
+  }
+
+  public void setTitulo(String titulo) {
+    this.titulo = titulo;
+  }
+
+  public String getIsbn() {
+    return isbn;
+  }
+
+  public void setIsbn(String isbn) {
+    this.isbn = isbn;
+  }
+
+  public String getAutor() {
+    return autor;
+  }
+
+  public void setAutor(String autor) {
+    this.autor = autor;
+  }
+
+  public CategoriaLibro getCategoria() {
+    return categoria;
+  }
+
+  public void setCategoria(CategoriaLibro categoria) {
+    this.categoria = categoria;
+  }
+}
 `
+
+const SOCIO_M04 = `package com.biblioteca.models;
+
+import java.util.UUID;
+
+import com.biblioteca.models.helpers.TipoSocio;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "socios")
+public class Socio {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
+
+  @Column(nullable = false, length = 100)
+  private String nombre;
+
+  @Column(nullable = false, unique = true, length = 150)
+  private String correo;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private TipoSocio tipo;
+
+  public Socio() {
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getNombre() {
+    return nombre;
+  }
+
+  public void setNombre(String nombre) {
+    this.nombre = nombre;
+  }
+
+  public String getCorreo() {
+    return correo;
+  }
+
+  public void setCorreo(String correo) {
+    this.correo = correo;
+  }
+
+  public TipoSocio getTipo() {
+    return tipo;
+  }
+
+  public void setTipo(TipoSocio tipo) {
+    this.tipo = tipo;
+  }
+}
+`
+
+// Lado "uno" de la relación: agrega a la entidad de m04 la lista de préstamos.
+// `mappedBy`: null (sin lista) o el texto de mappedBy; `json`: null o el value de @JsonManagedReference.
+const conLista = (base, clase, mappedBy, json) => {
+  if (mappedBy === null) return base
+  const enumImport = base.match(/import com\.biblioteca\.models\.helpers\.\w+;\n/)[0]
+  return base
+    .replace('import java.util.UUID;\n', 'import java.util.ArrayList;\nimport java.util.List;\nimport java.util.UUID;\n')
+    .replace(enumImport, enumImport + (json ? 'import com.fasterxml.jackson.annotation.JsonManagedReference;\n' : ''))
+    .replace('import jakarta.persistence.Id;\n', 'import jakarta.persistence.Id;\nimport jakarta.persistence.OneToMany;\n')
+    .replace(
+      `\n  public ${clase}() {`,
+      `\n  @OneToMany(mappedBy = "${mappedBy}")\n${json ? `  @JsonManagedReference(value = "${json}")\n` : ''}  private List<Prestamo> prestamos = new ArrayList<>();\n\n  public ${clase}() {`,
+    )
+    .replace(/\}\n$/, `${gs('List<Prestamo>', 'prestamos')}}\n`)
 }
 
-const libroCon = ({ mappedBy = null, json = false } = {}) =>
-  ladoUno({
-    clase: 'Libro',
-    tabla: 'libros',
-    enumImport: 'import com.biblioteca.models.helpers.CategoriaLibro;',
-    mappedBy,
-    json: json ? 'libro-prestamo' : null,
-    campos: [
-      { tipo: 'String', nombre: 'titulo', texto: '\n  @Column(nullable = false)\n  private String titulo;\n' },
-      { tipo: 'String', nombre: 'isbn', texto: '\n  @Column(nullable = false, unique = true, length = 20)\n  private String isbn;\n' },
-      { tipo: 'String', nombre: 'autor', texto: '\n  @Column(nullable = false)\n  private String autor;\n' },
-      { tipo: 'CategoriaLibro', nombre: 'categoria', texto: '\n  @Enumerated(EnumType.STRING)\n  @Column(nullable = false)\n  private CategoriaLibro categoria;\n' },
-    ],
-  })
-
-const socioCon = ({ mappedBy = null, json = false } = {}) =>
-  ladoUno({
-    clase: 'Socio',
-    tabla: 'socios',
-    enumImport: 'import com.biblioteca.models.helpers.TipoSocio;',
-    mappedBy,
-    json: json ? 'socio-prestamo' : null,
-    campos: [
-      { tipo: 'String', nombre: 'nombre', texto: '\n  @Column(nullable = false)\n  private String nombre;\n' },
-      { tipo: 'String', nombre: 'correo', texto: '\n  @Column(nullable = false, unique = true)\n  private String correo;\n' },
-      { tipo: 'TipoSocio', nombre: 'tipo', texto: '\n  @Enumerated(EnumType.STRING)\n  @Column(nullable = false)\n  private TipoSocio tipo;\n' },
-    ],
-  })
+const libroCon = ({ mappedBy = null, json = false } = {}) => conLista(LIBRO_M04, 'Libro', mappedBy, json ? 'libro-prestamo' : null)
+const socioCon = ({ mappedBy = null, json = false } = {}) => conLista(SOCIO_M04, 'Socio', mappedBy, json ? 'socio-prestamo' : null)
 
 // Lado "muchos": Prestamo. `libroCol` / `socioCol`: null (sin relación) o el name de @JoinColumn.
 const prestamoCon = ({ entity = true, fecha = 'LocalDate', libroCol = null, socioCol = null, json = false } = {}) => {
@@ -523,8 +617,8 @@ Importa las anotaciones de \`jakarta.persistence\`. Si quieres, pon \`@Column(nu
           title: 'Arregla el Prestamo de un compañero',
           instructions: `Un compañero escribió \`Prestamo.java\` (ya está abierto), pero tiene dos errores típicos de clase:
 
-1. **Le falta \`@Entity\`** encima de \`public class Prestamo\`. Ponla y añade \`import jakarta.persistence.Entity;\`.
-2. \`fechaPrestamo\` es \`String\`. Cámbialo a **\`LocalDate\`** (en el campo, en el getter y en el setter) y añade \`import java.time.LocalDate;\`.`,
+1. **Le falta \`@Entity\`** encima de \`public class Prestamo\`. Ponla y agrega \`import jakarta.persistence.Entity;\`.
+2. \`fechaPrestamo\` es \`String\`. Cámbialo a **\`LocalDate\`** (en el campo, en el getter y en el setter) y agrega \`import java.time.LocalDate;\`.`,
           files: proyecto({ prestamo: prestamoCon({ entity: false, fecha: 'String' }) }),
           activeFile: PRESTAMO,
           hints: [
@@ -599,7 +693,7 @@ Las dos anotaciones se importan de \`jakarta.persistence\`: \`jakarta.persistenc
         {
           id: 'm05-l2-c1',
           title: 'El préstamo apunta a un libro',
-          instructions: `En \`Prestamo.java\`, debajo de \`devuelto\`, añade la relación con el libro:
+          instructions: `En \`Prestamo.java\`, debajo de \`devuelto\`, agrega la relación con el libro:
 
 \`\`\`java
 @ManyToOne
@@ -607,7 +701,7 @@ Las dos anotaciones se importan de \`jakarta.persistence\`: \`jakarta.persistenc
 private Libro libro;
 \`\`\`
 
-Añade también \`import jakarta.persistence.ManyToOne;\` e \`import jakarta.persistence.JoinColumn;\`. El getter y el setter de \`libro\` son opcionales.`,
+Agrega también \`import jakarta.persistence.ManyToOne;\` e \`import jakarta.persistence.JoinColumn;\`. El getter y el setter de \`libro\` son opcionales.`,
           files: proyecto({ prestamo: PRESTAMO_BASE }),
           activeFile: PRESTAMO,
           hints: [
@@ -637,7 +731,7 @@ Añade también \`import jakarta.persistence.ManyToOne;\` e \`import jakarta.per
         {
           id: 'm05-l2-c2',
           title: 'Y también a un socio',
-          instructions: `Ahora añade, debajo de \`libro\`, la relación con el socio. Fíjate en que la columna tiene **otro nombre**:
+          instructions: `Ahora agrega, debajo de \`libro\`, la relación con el socio. Fíjate en que la columna tiene **otro nombre**:
 
 \`\`\`java
 @ManyToOne
@@ -697,7 +791,7 @@ Error del proyecto de clase: en \`Video\` se escribió \`mappedBy = "usuario"\`,
 
 ### El bucle infinito del JSON
 
-Más adelante (en m09) la aplicación enviará los datos como **JSON**, un texto que leen las webs y las apps del móvil. Al convertir un libro a JSON, Java escribe sus préstamos; cada préstamo escribe su libro; ese libro vuelve a escribir sus préstamos... Es como poner **dos espejos frente a frente**: la imagen se repite sin fin y la aplicación acaba fallando.
+Más adelante (en m09) la aplicación enviará los datos como **JSON**, un texto que leen las webs y las apps del celular. Al convertir un libro a JSON, Java escribe sus préstamos; cada préstamo escribe su libro; ese libro vuelve a escribir sus préstamos... Es como poner **dos espejos frente a frente**: la imagen se repite sin fin y la aplicación acaba fallando.
 
 La solución son dos anotaciones de \`com.fasterxml.jackson.annotation\` (Jackson es la librería que escribe el JSON):
 
@@ -711,14 +805,14 @@ Ojo: con \`@JsonBackReference\`, el JSON de un préstamo no mostrará su libro n
         {
           id: 'm05-l3-c1',
           title: 'El historial de préstamos del libro',
-          instructions: `En \`Libro.java\`, debajo de \`categoria\`, añade la lista de préstamos del libro:
+          instructions: `En \`Libro.java\`, debajo de \`categoria\`, agrega la lista de préstamos del libro:
 
 \`\`\`java
 @OneToMany(mappedBy = "libro")
 private List<Prestamo> prestamos = new ArrayList<>();
 \`\`\`
 
-Añade los import \`jakarta.persistence.OneToMany\`, \`java.util.List\` y \`java.util.ArrayList\`. No pongas \`@JoinColumn\` en \`Libro\`: la columna ya está en \`Prestamo\`.`,
+Agrega los import \`jakarta.persistence.OneToMany\`, \`java.util.List\` y \`java.util.ArrayList\`. No pongas \`@JoinColumn\` en \`Libro\`: la columna ya está en \`Prestamo\`.`,
           files: proyecto({ prestamo: PRESTAMO_AMBOS }),
           activeFile: LIBRO,
           hints: [
@@ -795,7 +889,7 @@ Mira \`Prestamo.java\`: el campo de tipo \`Socio\` se llama \`socio\`. Cambia la
         {
           id: 'm05-l3-c3',
           title: 'Corta el bucle del JSON',
-          instructions: `Último reto del módulo: las relaciones ya están en las tres entidades. Añade las **dos parejas** de referencias, con el \`value\` **igual** en las dos mitades:
+          instructions: `Último reto del módulo: las relaciones ya están en las tres entidades. Agrega las **dos parejas** de referencias, con el \`value\` **igual** en las dos mitades:
 
 **Pareja libro-prestamo**
 - \`Libro.java\`, encima de \`prestamos\`: \`@JsonManagedReference(value = "libro-prestamo")\`
