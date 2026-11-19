@@ -105,8 +105,8 @@ public enum TipoSocio {
 
 const LIBRO_JAVA = `package com.biblioteca.models;
 
-import com.biblioteca.models.helpers.CategoriaLibro;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.biblioteca.models.helpers.CategoriaLibro;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -134,7 +134,7 @@ public class Libro {
   @Column(nullable = false, unique = true, length = 20)
   private String isbn;
 
-  @Column(nullable = false, length = 100)
+  @Column(name = "nombre_autor", nullable = false, length = 100)
   private String autor;
 
   @Enumerated(EnumType.STRING)
@@ -142,7 +142,7 @@ public class Libro {
   private CategoriaLibro categoria;
 
   @OneToMany(mappedBy = "libro")
-  @JsonManagedReference(value = "libro-prestamos")
+  @JsonManagedReference(value = "libro-prestamo")
   private List<Prestamo> prestamos = new ArrayList<>();
 
   public Libro() {
@@ -200,8 +200,8 @@ public class Libro {
 
 const SOCIO_JAVA = `package com.biblioteca.models;
 
-import com.biblioteca.models.helpers.TipoSocio;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.biblioteca.models.helpers.TipoSocio;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -226,15 +226,15 @@ public class Socio {
   @Column(nullable = false, length = 100)
   private String nombre;
 
-  @Column(nullable = false, unique = true, length = 120)
+  @Column(nullable = false, unique = true, length = 150)
   private String correo;
 
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
+  @Column(nullable = false, length = 20)
   private TipoSocio tipo;
 
   @OneToMany(mappedBy = "socio")
-  @JsonManagedReference(value = "socio-prestamos")
+  @JsonManagedReference(value = "socio-prestamo")
   private List<Prestamo> prestamos = new ArrayList<>();
 
   public Socio() {
@@ -304,20 +304,20 @@ public class Prestamo {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(name = "fecha_prestamo", nullable = false)
+  @Column(nullable = false)
   private LocalDate fechaPrestamo;
 
   @Column(nullable = false)
   private boolean devuelto;
 
+  @JsonBackReference(value = "libro-prestamo")
   @ManyToOne
   @JoinColumn(name = "libro_id")
-  @JsonBackReference(value = "libro-prestamos")
   private Libro libro;
 
+  @JsonBackReference(value = "socio-prestamo")
   @ManyToOne
   @JoinColumn(name = "socio_id")
-  @JsonBackReference(value = "socio-prestamos")
   private Socio socio;
 
   public Prestamo() {
@@ -411,7 +411,7 @@ const chkError = (path, pattern, label, message) => ({ type: 'file-excludes', pa
 const chkSigue = (path, entidad) => ({
   type: 'file-includes',
   path,
-  pattern: `${L}(?:public\\s+)?interface\\s+I${entidad}Repositorio\\s+extends\\s+JpaRepository\\s*<\\s*${entidad}\\s*,\\s*UUID\\s*>`,
+  pattern: `${L}(?:public\\s+)?interface\\s+I${entidad}Repositorio\\s+extends\\s+JpaRepository\\s*<\\s*${entidad}\\s*,\\s*(?:java\\.util\\.)?UUID\\s*>`,
   label: `I${entidad}Repositorio sigue heredando de JpaRepository<${entidad}, UUID>`,
   message: `No toques la línea public interface I${entidad}Repositorio extends JpaRepository<${entidad}, UUID>: los métodos van dentro de las llaves.`,
 })
@@ -473,7 +473,7 @@ const chkSinS = (path) =>
     'Es existsBy, con s (exists = "existe"): existsByCorreo, existsByLibroAndDevuelto. Sin la s Spring no lo entiende.')
 const chkNoInt = (path) =>
   chkError(path, '\\b(?:int|Integer)\\s+countBy', 'countBy devuelve long',
-    'Un countBy devuelve un número long (como count() en m06), no int.')
+    'Un countBy devuelve un número: en clase usamos long, igual que count() en m06, no int.')
 
 const modulo = {
   id: 'm07',
@@ -626,7 +626,7 @@ List<Libro> findByTituloContainingIgnoreCase(String titulo);
 \`\`\`
 
 - **Containing**: el título **contiene** ese trozo, en cualquier parte (con "mar" encuentra "El viejo y el **mar**").
-- **IgnoreCase**: no importan mayúsculas ni minúsculas ("MAR", "Mar" y "mar" valen igual).
+- **IgnoreCase**: no importan mayúsculas ni minúsculas ("MAR", "Mar" y "mar" sirven igual).
 
 Como siempre, los nombres de los campos van **exactamente** como en la entidad: \`Titulo\` (sin tilde y en español, como el campo \`titulo\`), no \`Title\` ni \`Título\`.`,
       challenges: [
@@ -821,7 +821,7 @@ En la consulta va la **entidad** \`Libro\`, no la tabla \`libros\`.`,
             chkImport(LIBRO_REPO, 'org.springframework.data.jpa.repository', 'Query'),
             chkImport(LIBRO_REPO, 'org.springframework.data.repository.query', 'Param'),
             chkMetodo(LIBRO_REPO,
-              `${L}@Query\\s*\\(\\s*(?:value\\s*=\\s*)?"\\s*[Ss][Ee][Ll][Ee][Cc][Tt]\\s+(\\w+)\\s+[Ff][Rr][Oo][Mm]\\s+Libro\\s+\\1\\s+[Ww][Hh][Ee][Rr][Ee]\\s+\\1\\.autor\\s*=\\s*:autor\\s*"\\s*\\)`,
+              `${L}@Query\\s*\\(\\s*(?:value\\s*=\\s*)?"\\s*[Ss][Ee][Ll][Ee][Cc][Tt]\\s+(\\w+)\\s+[Ff][Rr][Oo][Mm]\\s+Libro\\s+(?:[Aa][Ss]\\s+)?\\1\\s+[Ww][Hh][Ee][Rr][Ee]\\s+\\1\\.autor\\s*=\\s*:autor\\s*"\\s*\\)`,
               'La consulta es SELECT l FROM Libro l WHERE l.autor = :autor',
               'Falta @Query("SELECT l FROM Libro l WHERE l.autor = :autor") encima del método.'),
             chkMetodo(LIBRO_REPO,

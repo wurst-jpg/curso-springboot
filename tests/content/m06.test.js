@@ -277,4 +277,77 @@ describe('módulo m06 Repositorios (Spring Boot)', () => {
     expect(modulo.lessons.map((l) => l.id)).toEqual(['m06-l1', 'm06-l2', 'm06-l3'])
     expect(retos).toHaveLength(8)
   })
+  describe('correcciones de la revisión', () => {
+    it('el paquete no acepta un subpaquete (repositories.libros)', () => {
+      const c = reto('m06-l1-c1')
+      expect(
+        mensajesQueFallan(c, variar(c, LIBRO_REPO, 'package com.biblioteca.repositories;', 'package com.biblioteca.repositories.libros;')),
+      ).toEqual([expect.stringMatching(/com\.biblioteca\.repositories/)])
+    })
+
+    it('acepta JpaRepository<Libro, java.util.UUID> sin import de UUID', () => {
+      const c = reto('m06-l1-c2')
+      const texto = resuelto(c)[LIBRO_REPO].replace('import java.util.UUID;\n', '').replace('<Libro, UUID>', '<Libro, java.util.UUID>')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('acepta un comentario entre @Repository y la interface', () => {
+      const c = reto('m06-l2-c1')
+      const texto = resuelto(c)[LIBRO_REPO].replace('@Repository\n', '@Repository\n// El bibliotecario de los libros\n')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('la chuleta acepta el método en negrita, como en las instrucciones', () => {
+      const c = reto('m06-l3-c1')
+      let texto = resuelto(c)[CHULETA]
+      ;['save', 'findAll', 'findById', 'deleteById'].forEach((m) => {
+        texto = texto.replace(`-> ${m}\n`, `-> **${m}**\n`)
+      })
+      expect(fallan(c, resuelto(c, { [CHULETA]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('la chuleta pide una sola respuesta por línea', () => {
+      const c = reto('m06-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, CHULETA, '-> findById', '-> findById o findAll'))).toEqual([expect.stringMatching(/findById/)])
+    })
+
+    it('m06-l2-c2 muestra también Libro.java y CategoriaLibro.java', () => {
+      const c = reto('m06-l2-c2')
+      expect(c.files['/src/main/java/com/biblioteca/models/Libro.java']).toBeDefined()
+      expect(c.files['/src/main/java/com/biblioteca/models/helpers/CategoriaLibro.java']).toBeDefined()
+    })
+
+    it('la explicación dice que @Repository es opcional con JpaRepository', () => {
+      const l = modulo.lessons.find((x) => x.id === 'm06-l2')
+      expect(l.explanation).toMatch(/opcional/)
+      expect(l.explanation).not.toMatch(/Spring la busca al arrancar/)
+    })
+  })
+
+  it('las entidades de inicio son las canónicas de m03-m05', () => {
+    retos.forEach((c) => {
+      const libro = c.files['/src/main/java/com/biblioteca/models/Libro.java']
+      const socio = c.files['/src/main/java/com/biblioteca/models/Socio.java']
+      const prestamo = c.files['/src/main/java/com/biblioteca/models/Prestamo.java']
+      if (libro) {
+        expect(libro, c.id).toContain('@JsonManagedReference(value = "libro-prestamo")')
+        expect(libro, c.id).toContain('@Column(name = "nombre_autor", nullable = false, length = 100)\n  private String autor;')
+        expect(libro, c.id).toContain('@Column(nullable = false, length = 150)\n  private String titulo;')
+      }
+      if (socio) {
+        expect(socio, c.id).toContain('@JsonManagedReference(value = "socio-prestamo")')
+        expect(socio, c.id).toContain('@Column(nullable = false, unique = true, length = 150)\n  private String correo;')
+        expect(socio, c.id).toContain('@Column(nullable = false, length = 20)\n  private TipoSocio tipo;')
+      }
+      if (prestamo) {
+        expect(prestamo, c.id).toContain('@JsonBackReference(value = "libro-prestamo")\n  @ManyToOne\n  @JoinColumn(name = "libro_id")\n  private Libro libro;')
+        expect(prestamo, c.id).toContain('@JsonBackReference(value = "socio-prestamo")\n  @ManyToOne\n  @JoinColumn(name = "socio_id")\n  private Socio socio;')
+        expect(prestamo, c.id).toContain('@Column(nullable = false)\n  private LocalDate fechaPrestamo;')
+      }
+    })
+  })
+
+  it('usa español de Colombia', () => {
+    expect(JSON.stringify(modulo)).not.toMatch(/ordenador|fichero|pegatina|\bvalen?\b|coger|móvil|vosotros/i)
+  })
 })

@@ -106,8 +106,8 @@ public enum TipoSocio {
 
 const LIBRO_JAVA = `package com.biblioteca.models;
 
-import com.biblioteca.models.helpers.CategoriaLibro;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.biblioteca.models.helpers.CategoriaLibro;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -135,7 +135,7 @@ public class Libro {
   @Column(nullable = false, unique = true, length = 20)
   private String isbn;
 
-  @Column(nullable = false, length = 100)
+  @Column(name = "nombre_autor", nullable = false, length = 100)
   private String autor;
 
   @Enumerated(EnumType.STRING)
@@ -143,7 +143,7 @@ public class Libro {
   private CategoriaLibro categoria;
 
   @OneToMany(mappedBy = "libro")
-  @JsonManagedReference(value = "libro-prestamos")
+  @JsonManagedReference(value = "libro-prestamo")
   private List<Prestamo> prestamos = new ArrayList<>();
 
   public Libro() {
@@ -201,8 +201,8 @@ public class Libro {
 
 const SOCIO_JAVA = `package com.biblioteca.models;
 
-import com.biblioteca.models.helpers.TipoSocio;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.biblioteca.models.helpers.TipoSocio;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -227,15 +227,15 @@ public class Socio {
   @Column(nullable = false, length = 100)
   private String nombre;
 
-  @Column(nullable = false, unique = true, length = 120)
+  @Column(nullable = false, unique = true, length = 150)
   private String correo;
 
   @Enumerated(EnumType.STRING)
-  @Column(nullable = false)
+  @Column(nullable = false, length = 20)
   private TipoSocio tipo;
 
   @OneToMany(mappedBy = "socio")
-  @JsonManagedReference(value = "socio-prestamos")
+  @JsonManagedReference(value = "socio-prestamo")
   private List<Prestamo> prestamos = new ArrayList<>();
 
   public Socio() {
@@ -305,20 +305,20 @@ public class Prestamo {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(name = "fecha_prestamo", nullable = false)
+  @Column(nullable = false)
   private LocalDate fechaPrestamo;
 
   @Column(nullable = false)
   private boolean devuelto;
 
+  @JsonBackReference(value = "libro-prestamo")
   @ManyToOne
   @JoinColumn(name = "libro_id")
-  @JsonBackReference(value = "libro-prestamos")
   private Libro libro;
 
+  @JsonBackReference(value = "socio-prestamo")
   @ManyToOne
   @JoinColumn(name = "socio_id")
-  @JsonBackReference(value = "socio-prestamos")
   private Socio socio;
 
   public Prestamo() {
@@ -386,7 +386,7 @@ const nombreDe = (path) => path.split('/').pop()
 const chkPaquete = (path) => ({
   type: 'file-includes',
   path,
-  pattern: `${L}package\\s+com\\.biblioteca\\.repositories\\s*;?`,
+  pattern: `${L}package\\s+com\\.biblioteca\\.repositories(?![\\w.])\\s*;?`,
   label: 'Está en el paquete com.biblioteca.repositories',
   message: `${nombreDe(path)} debe empezar con package com.biblioteca.repositories; (igual que su carpeta).`,
 })
@@ -410,7 +410,7 @@ const chkImportEntidad = (path, entidad) => ({
 const chkImportUUID = (path) => ({
   type: 'file-includes',
   path,
-  pattern: `${L}import\\s+java\\.util\\.(?:UUID|\\*)\\s*;`,
+  pattern: `${L}import\\s+java\\.util\\.(?:UUID|\\*)\\s*;|JpaRepository\\s*<[^>]*java\\.util\\.UUID`,
   label: 'Importa UUID',
   message: `Falta import java.util.UUID; en ${nombreDe(path)}.`,
 })
@@ -418,7 +418,7 @@ const chkImportUUID = (path) => ({
 const chkExtends = (path, entidad) => ({
   type: 'file-includes',
   path,
-  pattern: `${L}(?:public\\s+)?interface\\s+I${entidad}Repositorio\\s+extends\\s+JpaRepository\\s*<\\s*${entidad}\\s*,\\s*UUID\\s*>`,
+  pattern: `${L}(?:public\\s+)?interface\\s+I${entidad}Repositorio\\s+extends\\s+JpaRepository\\s*<\\s*${entidad}\\s*,\\s*(?:java\\.util\\.)?UUID\\s*>`,
   label: `I${entidad}Repositorio hereda de JpaRepository<${entidad}, UUID>`,
   message: `La línea debe ser public interface I${entidad}Repositorio extends JpaRepository<${entidad}, UUID>.`,
 })
@@ -458,7 +458,7 @@ const chkImportRepository = (path) => ({
 const chkAnotado = (path, entidad) => ({
   type: 'file-includes',
   path,
-  pattern: `${L}@Repository\\s+(?:public\\s+)?interface\\s+I${entidad}Repositorio\\b`,
+  pattern: `${L}@Repository\\s+(?:(?://[^\\n]*|/\\*[\\s\\S]*?\\*/)\\s*)*(?:public\\s+)?interface\\s+I${entidad}Repositorio\\b`,
   label: `@Repository está justo encima de I${entidad}Repositorio`,
   message: `Falta @Repository en la línea de arriba de public interface I${entidad}Repositorio.`,
 })
@@ -558,11 +558,11 @@ Saber si existe un libro con ese id -> existsById
 findById no da el libro suelto: lo da dentro de una caja llamada -> Optional
 `
 
-// Una línea de la chuleta con su respuesta (acepta \`save\`, save() o save(libro)).
+// Una línea de la chuleta con una sola respuesta (acepta save, **save**, \`save\`, save() o save(libro)).
 const chkChuleta = (pregunta, metodo, message) => ({
   type: 'file-includes',
   path: CHULETA,
-  pattern: `${pregunta}\\s*->[ \\t]*\`?${metodo}\\b`,
+  pattern: `${pregunta}\\s*->[ \\t]*(?:\\*\\*)?\`?${metodo}(?:\\([^)\\n]*\\))?\`?(?:\\*\\*)?[ \\t]*(?:\\r?\\n|$)`,
   label: `${pregunta} -> ${metodo}`,
   message,
 })
@@ -733,13 +733,14 @@ public interface ILibroRepositorio extends JpaRepository<Libro, UUID> {
 }
 \`\`\`
 
-¿Por qué ponerla?
+Te lo decimos claro: en una interface que hereda de \`JpaRepository\`, **@Repository es opcional**. Spring ya reconoce al bibliotecario por lo que hereda (\`extends JpaRepository\`) y él solo ya traduce los errores de la base de datos a errores de Spring. Funciona igual con placa o sin ella.
 
-- **Deja claro su trabajo**: cualquiera que abra el archivo sabe que esta pieza habla con la base de datos.
-- **Spring la busca al arrancar**: encuentra las piezas con placa y las deja listas para usarse en el resto de la aplicación.
-- **Traduce los errores** de la base de datos a errores de Spring, más fáciles de entender.
+¿Entonces por qué la ponemos?
 
-(Con \`JpaRepository\` Spring encontraría el repositorio igual, pero en clase siempre ponemos \`@Repository\`: es la placa que hace el código más claro.) Fíjate: la anotación está **en inglés**, \`@Repository\`, aunque nuestra interface se llame \`...Repositorio\`.
+- **Deja claro su trabajo**: cualquiera que abra el archivo ve de un vistazo que esta pieza habla con la base de datos.
+- **Es la convención de clase**: en el proyecto de clase todos los repositorios la llevan, y aquí hacemos lo mismo.
+
+Fíjate: la anotación está **en inglés**, \`@Repository\`, aunque nuestra interface se llame \`...Repositorio\`.
 
 ### Un bibliotecario por cada tipo de ficha
 
@@ -781,7 +782,7 @@ Un error muy común al copiar y pegar es dejar \`JpaRepository<Libro, UUID>\` de
 3. **@Repository** encima de \`public interface ISocioRepositorio extends JpaRepository<Socio, UUID> { }\`
 
 Mira \`Socio.java\` para comprobar de qué tipo es su id.`,
-          files: conSocio({ [LIBRO_REPO]: repoJava('Libro') }),
+          files: conSocio({ [LIBRO]: LIBRO_JAVA, [CATEGORIA]: CATEGORIA_JAVA, [LIBRO_REPO]: repoJava('Libro') }),
           activeFile: LIBRO_REPO,
           hints: [
             'Es igual que ILibroRepositorio.java (está abierto): puedes copiarlo como modelo.',

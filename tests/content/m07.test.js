@@ -280,4 +280,48 @@ describe('módulo m07 Consultas por nombre (Spring Boot)', () => {
     expect(modulo.lessons.map((l) => l.id)).toEqual(['m07-l1', 'm07-l2', 'm07-l3'])
     expect(retos).toHaveLength(9)
   })
+  describe('correcciones de la revisión', () => {
+    it('acepta java.util.UUID escrito completo en la línea de la interface', () => {
+      const c = reto('m07-l1-c1')
+      const texto = resuelto(c)[LIBRO_REPO].replace('<Libro, UUID>', '<Libro, java.util.UUID>')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('@Query acepta FROM Libro AS l', () => {
+      const c = reto('m07-l3-c2')
+      const texto = resuelto(c)[LIBRO_REPO].replace('FROM Libro l', 'FROM Libro AS l')
+      expect(fallan(c, resuelto(c, { [LIBRO_REPO]: texto })).map((k) => k.label)).toEqual([])
+    })
+
+    it('el mensaje de int en countBy dice que en clase usamos long', () => {
+      const c = reto('m07-l3-c1')
+      expect(mensajesQueFallan(c, variar(c, SOCIO_REPO, 'long countByTipo', 'int countByTipo'))).toContainEqual(
+        expect.stringMatching(/en clase usamos long, igual que count\(\)/),
+      )
+    })
+  })
+
+  it('las entidades de inicio son las canónicas de m03-m05', () => {
+    retos.forEach((c) => {
+      const libro = c.files['/src/main/java/com/biblioteca/models/Libro.java']
+      const socio = c.files['/src/main/java/com/biblioteca/models/Socio.java']
+      const prestamo = c.files['/src/main/java/com/biblioteca/models/Prestamo.java']
+      if (libro) {
+        expect(libro, c.id).toContain('@JsonManagedReference(value = "libro-prestamo")')
+        expect(libro, c.id).toContain('@Column(name = "nombre_autor", nullable = false, length = 100)\n  private String autor;')
+      }
+      if (socio) {
+        expect(socio, c.id).toContain('@JsonManagedReference(value = "socio-prestamo")')
+        expect(socio, c.id).toContain('@Column(nullable = false, length = 20)\n  private TipoSocio tipo;')
+      }
+      if (prestamo) {
+        expect(prestamo, c.id).toContain('@JsonBackReference(value = "libro-prestamo")\n  @ManyToOne\n  @JoinColumn(name = "libro_id")\n  private Libro libro;')
+        expect(prestamo, c.id).toContain('@Column(nullable = false)\n  private LocalDate fechaPrestamo;')
+      }
+    })
+  })
+
+  it('usa español de Colombia', () => {
+    expect(JSON.stringify(modulo)).not.toMatch(/ordenador|fichero|pegatina|\bvalen?\b|coger|móvil|vosotros/i)
+  })
 })
