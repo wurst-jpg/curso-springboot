@@ -23,5 +23,5 @@ npm run preview # opcional: ver la versión final en http://localhost:4173
 
 ## Ojo
 - **El progreso no viaja:** se guarda en el navegador de cada dirección. Lo que hiciste en `localhost` no aparece en la versión publicada.
-- **Necesita internet** para la vista previa de los retos (Sandpack), igual que en local.
+- Este curso es de **solo código**: no hay vista previa y "Comprobar" funciona aunque se corte el internet después de cargar la página.
 - No hay contraseñas ni claves en el proyecto: no hace falta configurar variables de entorno.
