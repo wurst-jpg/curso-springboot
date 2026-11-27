@@ -19,6 +19,9 @@ import AutocompleteToggle from './AutocompleteToggle.jsx'
 import CheckPanel from './CheckPanel.jsx'
 import HintBox from './HintBox.jsx'
 import Celebration from './Celebration.jsx'
+import AskClaude from './AskClaude.jsx'
+import { buildQuestion } from '../ask/buildQuestion.js'
+import { COURSE_TITLE } from '../ask/courseTitle.js'
 
 const SAVE_DELAY_MS = 500
 const SLOW_PREVIEW_MS = 30000
@@ -76,6 +79,8 @@ export default function Workspace({
   canCleanStart,
   getCleanStart,
   codeOnly = false,
+  moduleTitle = '',
+  lesson = null,
 }) {
   const { sandpack, listen, dispatch } = useSandpack()
   const { progress, complete, viewSolution } = useProgress()
@@ -225,6 +230,23 @@ export default function Workspace({
     sandpack.deleteFile(path)
   }
 
+  const buildText = (question) =>
+    buildQuestion({
+      courseTitle: COURSE_TITLE,
+      codeOnly,
+      question,
+      moduleTitle,
+      lessonTitle: lesson?.title ?? '',
+      lessonExplanation: lesson?.explanation ?? '',
+      challengeTitle: challenge.title,
+      instructions: challenge.instructions,
+      files,
+      activeFile: sandpack.activeFile,
+      results,
+      hints: challenge.hints ?? [],
+      hintsShown,
+    })
+
   const showSlowWarning = !codeOnly && slow && !previewLoaded
 
   // Resultado de "Comprobar": junto a la vista previa o, sin ella, debajo del editor.
@@ -331,6 +353,7 @@ export default function Workspace({
           </div>
         )}
         <HintBox hints={challenge.hints ?? []} shown={hintsShown} onReveal={onRevealHint} />
+        <AskClaude buildText={buildText} />
         {codeOnly && (
           <section aria-label="Resultados" className="flex min-w-0 flex-col gap-3">
             {feedback}

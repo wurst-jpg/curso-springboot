@@ -88,6 +88,8 @@ function ChallengeView({ entry, nextChallenge }) {
             onRestart={restart}
             canCleanStart={challenge.startFrom === 'previous'}
             codeOnly={codeOnly}
+            moduleTitle={module.title}
+            lesson={lesson}
             getCleanStart={() => cleanStartFiles(course, challenge.id)}
           />
         </div>
