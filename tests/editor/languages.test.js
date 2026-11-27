@@ -1,6 +1,6 @@
 import { EditorState } from '@codemirror/state'
 import { javascript } from '@codemirror/lang-javascript'
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { ADDITIONAL_LANGUAGES, editorLanguage, isJsLanguage, isWebLanguage } from '../../src/editor/languages.js'
 
 const byExt = (ext) => ADDITIONAL_LANGUAGES.find((l) => l.extensions.includes(ext))
@@ -20,14 +20,18 @@ describe('lenguajes extra del editor', () => {
   it('Java y XML se analizan de verdad (hay árbol de sintaxis con sus nodos)', () => {
     const javaState = EditorState.create({ doc: 'public class Libro { String t = "x"; }', extensions: [byExt('java').language] })
     const nodes = []
-    syntaxTree(javaState).iterate({ enter: (n) => nodes.push(n.name) })
+    const javaTree = ensureSyntaxTree(javaState, javaState.doc.length, 5000)
+    expect(javaTree).not.toBeNull()
+    javaTree.iterate({ enter: (n) => nodes.push(n.name) })
     expect(nodes).toContain('ClassDeclaration')
     expect(nodes).toContain('StringLiteral')
     expect(editorLanguage(javaState)).toBe('java')
 
     const xmlState = EditorState.create({ doc: '<project><a b="c"/></project>', extensions: [byExt('xml').language] })
     const xmlNodes = []
-    syntaxTree(xmlState).iterate({ enter: (n) => xmlNodes.push(n.name) })
+    const xmlTree = ensureSyntaxTree(xmlState, xmlState.doc.length, 5000)
+    expect(xmlTree).not.toBeNull()
+    xmlTree.iterate({ enter: (n) => xmlNodes.push(n.name) })
     expect(xmlNodes).toContain('TagName')
     expect(editorLanguage(xmlState)).toBe('xml')
   })
