@@ -15,6 +15,10 @@ const LANGUAGES = {
   html: 'html',
   md: 'md',
   txt: 'txt',
+  yml: 'yaml',
+  yaml: 'yaml',
+  sql: 'sql',
+  json: 'json',
 }
 
 export function languageOf(path) {
@@ -38,13 +42,25 @@ function filesSection(files, activeFile) {
   return `Mi código actual:\n\n${parts.join('\n\n')}`
 }
 
-function resultsSection(results) {
+const STATUS = {
+  pass: { icon: '✅' },
+  'manual-done': { icon: '✅', note: 'hecho' },
+  fail: { icon: '❌' },
+  error: { icon: '⚠️', note: 'no se pudo comprobar' },
+  'manual-pending': { icon: '○', note: 'sin marcar' },
+}
+
+const RESULTS_HEADER = 'Resultado de Comprobar (de la última vez que lo pulsé):'
+
+function resultsSection(results, checkError) {
+  if (checkError) return `${RESULTS_HEADER}\nAl pulsar Comprobar hubo un error y no se pudo comprobar: ${checkError}`
   if (!results) return `Resultado de Comprobar:\n${NO_CHECK}`
   const lines = results.map((r) => {
-    const icon = r.status === 'pass' ? '✅' : '❌'
-    return `- ${icon} ${r.label}${r.message ? ` — ${r.message}` : ''}`
+    const s = STATUS[r.status] ?? STATUS.error
+    const note = s.note ? ` (${s.note})` : ''
+    return `- ${s.icon} ${r.label}${note}${r.message ? ` — ${r.message}` : ''}`
   })
-  return `Resultado de Comprobar:\n${lines.join('\n')}`
+  return `${RESULTS_HEADER}\n${lines.join('\n')}`
 }
 
 function hintsSection(hints, shown) {
@@ -67,6 +83,8 @@ export function buildQuestion({
   files = {},
   activeFile,
   results = null,
+  checkError = null,
+  solutionViewed = false,
   hints = [],
   hintsShown = 0,
 }) {
@@ -79,7 +97,7 @@ export function buildQuestion({
     `Módulo: ${moduleTitle}\nLección: ${lessonTitle}\nReto: ${challengeTitle}\n\n` +
     `Instrucciones del reto:\n${instructions}`
   const lesson = `Explicación de la lección:\n${lessonExplanation ?? ''}`
-  return [intro, doubt, challenge, lesson, filesSection(files, activeFile), resultsSection(results), hintsSection(hints, hintsShown)]
+  return [intro, doubt, challenge, lesson, filesSection(files, activeFile), resultsSection(results, checkError), hintsSection(hints, hintsShown), solutionViewed ? 'Ya vi la solución de este reto.' : null]
     .filter(Boolean)
     .join('\n\n')
 }

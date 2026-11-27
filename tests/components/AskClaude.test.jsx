@@ -73,6 +73,40 @@ describe('AskClaude', () => {
     expect(screen.getByText(/No pude copiarlo solo/)).toBeInTheDocument()
     await waitFor(() => expect(manual).toHaveFocus())
     expect(screen.queryByText('¡Copiado! Ahora pégalo en Claude (Ctrl+V)')).toBeNull()
+    // el cuadro grande va fuera de la zona de avisos (role="status")
+    expect(screen.getByRole('status')).not.toContainElement(manual)
+  })
+
+  it('al cambiar la duda se borra el aviso de copiado', async () => {
+    const user = userEvent.setup()
+    setClipboard({ writeText: vi.fn().mockResolvedValue() })
+    render(<AskClaude buildText={buildText} />)
+    await openPanel(user)
+    await user.click(screen.getByRole('button', { name: 'Copiar pregunta' }))
+    await screen.findByText(/¡Copiado!/)
+    await user.type(screen.getByLabelText('¿Qué no entiendes? (opcional)'), 'a')
+    expect(screen.queryByText(/¡Copiado!/)).toBeNull()
+  })
+
+  it('cada intento fallido vuelve a enfocar el texto a mano', async () => {
+    const user = userEvent.setup()
+    render(<AskClaude buildText={buildText} />)
+    setClipboard(undefined)
+    document.execCommand = vi.fn().mockReturnValue(false)
+    await openPanel(user)
+    await user.click(screen.getByRole('button', { name: 'Copiar pregunta' }))
+    const manual = await screen.findByLabelText('Texto para copiar a mano')
+    await waitFor(() => expect(manual).toHaveFocus())
+    await user.click(screen.getByRole('button', { name: 'Copiar pregunta' }))
+    await waitFor(() => expect(screen.getByLabelText('Texto para copiar a mano')).toHaveFocus())
+  })
+
+  it('el botón apunta al panel con aria-controls', async () => {
+    const user = userEvent.setup()
+    render(<AskClaude buildText={buildText} />)
+    await openPanel(user)
+    const id = screen.getByRole('button', { name: 'Pregúntale a Claude' }).getAttribute('aria-controls')
+    expect(document.getElementById(id)).toContainElement(screen.getByLabelText('¿Qué no entiendes? (opcional)'))
   })
 
   it('avisa si el texto es muy largo', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { copyText } from '../ask/copyText.js'
 import { LONG_TEXT_LIMIT } from '../ask/buildQuestion.js'
 
@@ -12,20 +12,26 @@ export default function AskClaude({ buildText }) {
   const [open, setOpen] = useState(false)
   const [doubt, setDoubt] = useState('')
   const [state, setState] = useState(null) // { copied, text }
+  const [attempt, setAttempt] = useState(0)
   const manualRef = useRef(null)
+  const uid = useId()
+  const panelId = `${uid}-panel`
+  const doubtId = `${uid}-doubt`
 
-  const manual = state && !state.copied
+  // Cada intento fallido vuelve a enfocar y seleccionar el texto para copiar a mano.
+  const failed = Boolean(state && !state.copied)
   useEffect(() => {
-    if (manual) {
+    if (failed) {
       manualRef.current?.focus()
       manualRef.current?.select()
     }
-  }, [manual])
+  }, [failed, attempt])
 
   async function copy() {
     const text = buildText(doubt)
     const copied = await copyText(text)
     setState({ copied, text })
+    setAttempt((n) => n + 1)
   }
 
   return (
@@ -33,21 +39,25 @@ export default function AskClaude({ buildText }) {
       <button
         type="button"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
         className={`${button} self-start bg-violet-700 text-white hover:bg-violet-600`}
       >
         Pregúntale a Claude
       </button>
       {open && (
-        <div className="flex flex-col gap-3 rounded-lg border border-violet-500/60 bg-slate-800 p-4">
-          <label htmlFor="ask-doubt" className="font-semibold text-slate-100">
+        <div id={panelId} className="flex flex-col gap-3 rounded-lg border border-violet-500/60 bg-slate-800 p-4">
+          <label htmlFor={doubtId} className="font-semibold text-slate-100">
             ¿Qué no entiendes? (opcional)
           </label>
           <textarea
-            id="ask-doubt"
+            id={doubtId}
             rows={3}
             value={doubt}
-            onChange={(e) => setDoubt(e.target.value)}
+            onChange={(e) => {
+              setDoubt(e.target.value)
+              setState(null)
+            }}
             className="rounded-md border border-slate-600 bg-slate-900 p-2 text-slate-100"
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -65,20 +75,10 @@ export default function AskClaude({ buildText }) {
           </div>
           <div role="status" className="flex flex-col gap-2">
             {state?.copied && <p className="text-emerald-300">¡Copiado! Ahora pégalo en Claude (Ctrl+V)</p>}
-            {state && !state.copied && (
-              <>
-                <p className="text-orange-200">
-                  No pude copiarlo solo. El texto está aquí abajo, ya seleccionado: cópialo con Ctrl+C y pégalo en Claude.
-                </p>
-                <textarea
-                  ref={manualRef}
-                  readOnly
-                  aria-label="Texto para copiar a mano"
-                  rows={8}
-                  value={state.text}
-                  className="rounded-md border border-slate-600 bg-slate-900 p-2 font-mono text-sm text-slate-100"
-                />
-              </>
+            {failed && (
+              <p className="text-orange-200">
+                No pude copiarlo solo. El texto está aquí abajo, ya seleccionado: cópialo con Ctrl+C y pégalo en Claude.
+              </p>
             )}
             {state && state.text.length > LONG_TEXT_LIMIT && (
               <p className="text-orange-200">
@@ -86,6 +86,16 @@ export default function AskClaude({ buildText }) {
               </p>
             )}
           </div>
+          {failed && (
+            <textarea
+              ref={manualRef}
+              readOnly
+              aria-label="Texto para copiar a mano"
+              rows={8}
+              value={state.text}
+              className="rounded-md border border-slate-600 bg-slate-900 p-2 font-mono text-sm text-slate-100"
+            />
+          )}
         </div>
       )}
     </section>

@@ -243,6 +243,8 @@ export default function Workspace({
       files,
       activeFile: sandpack.activeFile,
       results,
+      checkError,
+      solutionViewed: Boolean(progress.solutionViewed?.[challenge.id]),
       hints: challenge.hints ?? [],
       hintsShown,
     })

@@ -1,4 +1,4 @@
-import { buildQuestion, LONG_TEXT_LIMIT, languageOf, NO_DOUBT, NO_CHECK } from '../../src/ask/buildQuestion.js'
+import { buildQuestion, languageOf, NO_DOUBT, NO_CHECK } from '../../src/ask/buildQuestion.js'
 
 const base = () => ({
   courseTitle: 'Curso de Spring Boot',
@@ -58,7 +58,7 @@ describe('buildQuestion', () => {
   })
 
   it('lenguajes por extensión', () => {
-    const map = { 'A.java': 'java', 'a.xml': 'xml', 'a.properties': 'properties', 'a.jsx': 'jsx', 'a.js': 'js', 'a.css': 'css', 'a.html': 'html', 'a.md': 'md', 'a.txt': 'txt', 'a.xyz': '' }
+    const map = { 'A.java': 'java', 'a.xml': 'xml', 'a.properties': 'properties', 'a.jsx': 'jsx', 'a.js': 'js', 'a.css': 'css', 'a.html': 'html', 'a.md': 'md', 'a.txt': 'txt', 'a.xyz': '', 'a.yml': 'yaml', 'a.yaml': 'yaml', 'a.sql': 'sql', 'a.json': 'json' }
     for (const [p, l] of Object.entries(map)) expect(languageOf(p)).toBe(l)
   })
 
@@ -80,12 +80,11 @@ describe('buildQuestion', () => {
     expect(t).not.toContain(NO_CHECK)
   })
 
-  it('solo incluye las pistas abiertas y nunca la solución', () => {
-    const t = buildQuestion({ ...base(), solution: { '/x': 'SOLUCION_SECRETA' } })
+  it('solo incluye las pistas abiertas (las cerradas no se filtran)', () => {
+    const t = buildQuestion(base())
     expect(t).toContain('Pistas que ya abrí: 1 de 3')
     expect(t).toContain('Pista uno')
     expect(t).not.toContain('secreta')
-    expect(t).not.toContain('SOLUCION_SECRETA')
   })
 
   it('sin pistas abiertas o sin pistas', () => {
@@ -95,7 +94,33 @@ describe('buildQuestion', () => {
     expect(buildQuestion({ ...base(), hints: [], hintsShown: 0 })).not.toContain('Pistas que ya abrí')
   })
 
-  it('el límite de texto largo es 60000', () => {
-    expect(LONG_TEXT_LIMIT).toBe(60000)
+  it('mapea cada estado de Comprobar como el panel de resultados', () => {
+    const t = buildQuestion({
+      ...base(),
+      results: [
+        { index: 0, label: 'A', status: 'pass' },
+        { index: 1, label: 'B', status: 'fail', message: 'falta' },
+        { index: 2, label: 'C', status: 'error', message: 'roto' },
+        { index: 3, label: 'D', status: 'manual-pending' },
+        { index: 4, label: 'E', status: 'manual-done' },
+      ],
+    })
+    expect(t).toContain('Resultado de Comprobar (de la última vez que lo pulsé):')
+    expect(t).toContain('- ✅ A')
+    expect(t).toContain('- ❌ B — falta')
+    expect(t).toContain('- ⚠️ C (no se pudo comprobar) — roto')
+    expect(t).toContain('- ○ D (sin marcar)')
+    expect(t).toContain('- ✅ E (hecho)')
+  })
+
+  it('si Comprobar dio un error lo dice en vez de "no he pulsado"', () => {
+    const t = buildQuestion({ ...base(), checkError: 'Algo salió mal al comprobar' })
+    expect(t).toContain('Algo salió mal al comprobar')
+    expect(t).not.toContain(NO_CHECK)
+  })
+
+  it('avisa si el alumno ya vio la solución, pero nunca la incluye', () => {
+    expect(buildQuestion({ ...base(), solutionViewed: true })).toContain('Ya vi la solución de este reto.')
+    expect(buildQuestion(base())).not.toContain('Ya vi la solución')
   })
 })

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import ChallengePage from '../../src/pages/ChallengePage.jsx'
 import { ProgressProvider } from '../../src/progress/ProgressContext.jsx'
 
@@ -32,6 +32,15 @@ vi.mock('../../src/content/course.js', async (importOriginal) => {
               solution: { [LIBRO]: 'SOLUCION_SECRETA' },
               checks: [{ type: 'file-includes', path: LIBRO, pattern: 'titulo', label: 'Libro tiene titulo' }],
             },
+            {
+              id: 'm00-l1-c2',
+              title: 'Otro reto',
+              instructions: 'Otra cosa.',
+              files: { [LIBRO]: 'class Otro {}' },
+              activeFile: LIBRO,
+              solution: { [LIBRO]: 'class Otro {}' },
+              checks: [{ type: 'file-includes', path: LIBRO, pattern: 'Otro', label: 'Otro' }],
+            },
           ],
         },
       ],
@@ -61,7 +70,15 @@ function renderPage() {
     <ProgressProvider>
       <MemoryRouter initialEntries={['/reto/m00-l1-c1']}>
         <Routes>
-          <Route path="/reto/:challengeId" element={<ChallengePage />} />
+          <Route
+            path="/reto/:challengeId"
+            element={
+              <>
+                <Link to="/reto/m00-l1-c2">Ir al otro reto</Link>
+                <ChallengePage />
+              </>
+            }
+          />
         </Routes>
       </MemoryRouter>
     </ProgressProvider>,
@@ -108,4 +125,28 @@ test('incluye resultados de Comprobar y solo las pistas abiertas, nunca la soluc
   expect(copied).not.toContain('PISTA_DOS')
   expect(copied).not.toContain('SOLUCION_SECRETA')
   expect(copied).toContain('No escribí una duda concreta')
+})
+
+test('si ya vio la solución, lo dice (y la solución no se copia)', async () => {
+  const user = userEvent.setup()
+  mockClipboard()
+  renderPage()
+  await user.click(screen.getByRole('button', { name: 'Ver solución' }))
+  await user.click(screen.getByRole('button', { name: 'Sí, ver la solución' }))
+  await ask(user)
+  expect(copied).toContain('Ya vi la solución de este reto.')
+  expect(copied).toContain('### /pom.xml')
+})
+
+test('al cambiar de reto el panel se cierra y la duda se borra', async () => {
+  const user = userEvent.setup()
+  mockClipboard()
+  renderPage()
+  await user.click(screen.getByRole('button', { name: 'Pregúntale a Claude' }))
+  await user.type(screen.getByLabelText('¿Qué no entiendes? (opcional)'), 'duda vieja')
+  await user.click(screen.getByRole('link', { name: 'Ir al otro reto' }))
+  expect(await screen.findByRole('heading', { name: 'Otro reto' })).toBeInTheDocument()
+  expect(screen.queryByLabelText('¿Qué no entiendes? (opcional)')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Pregúntale a Claude' }))
+  expect(screen.getByLabelText('¿Qué no entiendes? (opcional)')).toHaveValue('')
 })

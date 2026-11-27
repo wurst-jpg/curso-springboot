@@ -9,6 +9,7 @@ export async function copyText(text) {
   } catch {
     // se prueba el plan B
   }
+  const previous = document.activeElement
   const area = document.createElement('textarea')
   area.value = text
   area.setAttribute('readonly', '')
@@ -18,11 +19,14 @@ export async function copyText(text) {
   area.style.pointerEvents = 'none'
   document.body.appendChild(area)
   try {
+    area.focus()
     area.select()
+    area.setSelectionRange(0, text.length)
     return typeof document.execCommand === 'function' && document.execCommand('copy') === true
   } catch {
     return false
   } finally {
     area.remove()
+    if (previous && typeof previous.focus === 'function') previous.focus()
   }
 }
